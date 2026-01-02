@@ -1,0 +1,124 @@
+#!/bin/bash
+# quicue - Infrastructure-as-Graph CLI
+#
+# Usage:
+#   quicue                          List all resources
+#   quicue <resource>               Show resource details
+#   quicue <resource> <action>      Execute action
+#   quicue <resource> <action> dry  Show command without executing
+#   quicue actions <resource>       List actions for resource
+#   quicue types                    List all resource types
+#   quicue types <type>             List resources of type
+#   quicue critical                 List critical infrastructure
+#   quicue deps                     Show dependency graph
+#   quicue -q ...                   Quiet mode (suppress cue commands)
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+DIM='\033[2m'
+NC='\033[0m'
+
+# Verbose by default, -q to suppress
+VERBOSE=1
+if [[ "${1:-}" == "-q" || "${1:-}" == "--quiet" ]]; then
+    VERBOSE=0
+    shift
+fi
+
+# Run cue command, showing it first if verbose
+run_cue() {
+    if [[ $VERBOSE -eq 1 ]]; then
+        echo -e "${DIM}> cue $*${NC}" >&2
+    fi
+    cue "$@"
+}
+
+case "${1:-}" in
+    ""|help|-h|--help)
+        if [[ -z "${1:-}" ]]; then
+            # No args - list resources
+            echo -e "${BLUE}Resources:${NC}"
+            run_cue cmd list ./reference/... | while read -r name; do
+                echo "  $name"
+            done
+        else
+            echo "quicue - Infrastructure-as-Graph CLI"
+            echo ""
+            echo "Usage:"
+            echo "  quicue                          List all resources"
+            echo "  quicue <resource>               Show resource details"
+            echo "  quicue <resource> <action>      Execute action"
+            echo "  quicue <resource> <action> dry  Show command without executing"
+            echo ""
+            echo "  quicue actions <resource>       List actions for resource"
+            echo "  quicue types                    List all resource types"
+            echo "  quicue types <type>             List resources of type"
+            echo "  quicue critical                 List critical infrastructure"
+            echo "  quicue deps                     Show dependency graph"
+            echo "  quicue json                     Export full inventory as JSON"
+            echo ""
+            echo "Options:"
+            echo "  -q, --quiet                     Suppress cue command display"
+            echo ""
+            echo "Examples:"
+            echo "  quicue dns ping                 Ping DNS server"
+            echo "  quicue git status               Check git container status"
+            echo "  quicue actions proxy            Show all proxy actions"
+            echo "  quicue types MonitoringServer   List monitoring resources"
+        fi
+        ;;
+
+    actions)
+        if [[ -z "${2:-}" ]]; then
+            echo "Usage: quicue actions <resource>"
+            exit 1
+        fi
+        run_cue cmd -t resource="$2" actions ./reference/...
+        ;;
+
+    types)
+        if [[ -z "${2:-}" ]]; then
+            # List all type names
+            run_cue export ./reference/inventory.cue -e by_type --out json | jq -r 'keys[]'
+        else
+            # List resources of specific type
+            run_cue export ./reference/inventory.cue -e "by_type.$2" --out json
+        fi
+        ;;
+
+    critical)
+        run_cue export ./reference/inventory.cue -e critical --out json
+        ;;
+
+    deps)
+        run_cue export ./reference/inventory.cue -e deps --out json
+        ;;
+
+    json)
+        run_cue export ./reference/inventory.cue -e output --out json
+        ;;
+
+    *)
+        RESOURCE=$1
+        ACTION=${2:-}
+
+        if [[ -z "$ACTION" ]]; then
+            # Show resource details
+            run_cue cmd -t resource="$RESOURCE" show ./reference/...
+        else
+            # Execute or dry-run action
+            if [[ "${3:-}" == "dry" ]]; then
+                run_cue cmd -t resource="$RESOURCE" -t action="$ACTION" dry ./reference/...
+            else
+                echo -e "${GREEN}$RESOURCE.$ACTION${NC}"
+                run_cue cmd -t resource="$RESOURCE" -t action="$ACTION" run ./reference/...
+            fi
+        fi
+        ;;
+esac

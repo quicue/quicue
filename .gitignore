@@ -1,0 +1,13 @@
+# Generated outputs
+/out/
+*.jsonld
+
+# CUE cache
+.cue/
+CLAUDE.md
+
+# Local dev
+.gitlab-ci-local/
+experiments/
+status/
+TOOLING.md
