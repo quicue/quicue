@@ -1,0 +1,159 @@
+{
+    "nodes": [
+        {
+            "id": "pve-node",
+            "types": [
+                "VirtualizationPlatform"
+            ],
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 4
+        },
+        {
+            "id": "dns-primary",
+            "types": [
+                "DNSServer",
+                "CriticalInfra"
+            ],
+            "depth": 1,
+            "ancestors": [
+                "pve-node"
+            ],
+            "dependents": 3
+        },
+        {
+            "id": "reverse-proxy",
+            "types": [
+                "ReverseProxy"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-primary",
+                "pve-node"
+            ],
+            "dependents": 1
+        },
+        {
+            "id": "git-server",
+            "types": [
+                "SourceControlManagement"
+            ],
+            "depth": 3,
+            "ancestors": [
+                "dns-primary",
+                "reverse-proxy",
+                "pve-node"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "monitoring",
+            "types": [
+                "MonitoringServer"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-primary",
+                "pve-node"
+            ],
+            "dependents": 0
+        }
+    ],
+    "edges": [
+        {
+            "source": "pve-node",
+            "target": "dns-primary"
+        },
+        {
+            "source": "dns-primary",
+            "target": "reverse-proxy"
+        },
+        {
+            "source": "dns-primary",
+            "target": "git-server"
+        },
+        {
+            "source": "reverse-proxy",
+            "target": "git-server"
+        },
+        {
+            "source": "dns-primary",
+            "target": "monitoring"
+        }
+    ],
+    "topology": {
+        "layer_0": [
+            "pve-node"
+        ],
+        "layer_1": [
+            "dns-primary"
+        ],
+        "layer_2": [
+            "reverse-proxy",
+            "monitoring"
+        ],
+        "layer_3": [
+            "git-server"
+        ]
+    },
+    "roots": [
+        "pve-node"
+    ],
+    "leaves": [
+        "git-server",
+        "monitoring"
+    ],
+    "criticality": [
+        {
+            "name": "pve-node",
+            "dependents": 4
+        },
+        {
+            "name": "dns-primary",
+            "dependents": 3
+        },
+        {
+            "name": "reverse-proxy",
+            "dependents": 1
+        },
+        {
+            "name": "git-server",
+            "dependents": 0
+        },
+        {
+            "name": "monitoring",
+            "dependents": 0
+        }
+    ],
+    "byType": {
+        "VirtualizationPlatform": [
+            "pve-node"
+        ],
+        "DNSServer": [
+            "dns-primary"
+        ],
+        "CriticalInfra": [
+            "dns-primary"
+        ],
+        "ReverseProxy": [
+            "reverse-proxy"
+        ],
+        "SourceControlManagement": [
+            "git-server"
+        ],
+        "MonitoringServer": [
+            "monitoring"
+        ]
+    },
+    "metrics": {
+        "total": 5,
+        "maxDepth": 3,
+        "edges": 5,
+        "roots": 1,
+        "leaves": 2
+    },
+    "validation": {
+        "valid": true,
+        "issues": []
+    }
+}

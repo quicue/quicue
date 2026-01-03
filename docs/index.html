@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>quicue - Infrastructure Graph Explorer</title>
+    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        h1 { font-size: 1.5rem; font-weight: 600; }
+        h1 a { color: #c9d1d9; text-decoration: none; }
+        h1 span { color: #8b949e; font-weight: 400; }
+        nav {
+            display: flex;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+        nav button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            min-width: 90px;
+            text-align: center;
+        }
+        nav button:hover { background: #30363d; }
+        nav button.active {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        nav button:focus-visible,
+        select:focus-visible {
+            outline: 2px solid #58a6ff;
+            outline-offset: 2px;
+        }
+        .links a {
+            color: #58a6ff;
+            text-decoration: none;
+            margin-left: 1.5rem;
+        }
+        .links a:hover { text-decoration: underline; }
+        #example-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        #example-select:hover { background: #30363d; }
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #cy {
+            flex: 1;
+            background: #161b22;
+        }
+        aside {
+            width: 360px;
+            padding: 1.5rem;
+            border-left: 1px solid #30363d;
+            overflow-y: auto;
+            transition: width 0.2s ease;
+        }
+        /* Full-width mode for composition view */
+        main.composition-active #cy { display: none; }
+        main.composition-active aside {
+            width: 100%;
+            border-left: none;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        /* Hide graph-specific controls in composition view */
+        body.composition-active #metrics-bar { display: none; }
+        body.composition-active #example-select { display: none; }
+        .panel { margin-bottom: 1.5rem; }
+        .panel h2 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b949e;
+            margin-bottom: 0.75rem;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .info-label { color: #8b949e; }
+        .info-value { font-family: monospace; }
+        .type-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: #21262d;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin: 0.25rem 0.25rem 0 0;
+        }
+        .type-badge.semantic { border-left: 3px solid #58a6ff; }
+        .type-badge.implementation { border-left: 3px solid #a371f7; }
+        .type-badge.classification { border-left: 3px solid #f0883e; }
+        #node-details { display: none; }
+        #node-details.active { display: block; }
+        #edge-details { display: none; }
+        #edge-details.active { display: block; }
+        .legend { font-size: 0.75rem; }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        .help {
+            font-size: 0.75rem;
+            color: #8b949e;
+            line-height: 1.6;
+        }
+        /* API Reference styles */
+        .view { display: none; }
+        .view.active { display: block; }
+        .endpoint {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            cursor: pointer;
+            gap: 0.5rem;
+        }
+        .endpoint-header:hover { background: #21262d; }
+        .endpoint-method {
+            font-size: 0.625rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+        .endpoint-method.get { background: #238636; color: white; }
+        .endpoint-method.query { background: #1f6feb; color: white; }
+        .endpoint-path {
+            font-family: monospace;
+            font-size: 0.875rem;
+            flex: 1;
+        }
+        .endpoint-body {
+            display: none;
+            padding: 0.75rem;
+            border-top: 1px solid #30363d;
+            background: #0d1117;
+        }
+        .endpoint.expanded .endpoint-body { display: block; }
+        .endpoint-desc {
+            font-size: 0.75rem;
+            color: #8b949e;
+            margin-bottom: 0.75rem;
+        }
+        .code-block {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .code-label {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            color: #8b949e;
+            margin-bottom: 0.25rem;
+        }
+        /* Edge list */
+        .edge-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #21262d;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .edge-item:hover { background: #21262d; }
+        .edge-item.selected { background: #1f6feb33; }
+        .edge-arrow {
+            color: #58a6ff;
+            margin: 0 0.5rem;
+        }
+        .edge-type {
+            margin-left: auto;
+            font-size: 0.625rem;
+            padding: 0.125rem 0.375rem;
+            background: #30363d;
+            border-radius: 3px;
+        }
+        /* Criticality view */
+        .crit-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #21262d;
+            cursor: pointer;
+            gap: 0.5rem;
+        }
+        .crit-item:hover { background: #21262d; }
+        .crit-rank {
+            font-size: 0.75rem;
+            color: #8b949e;
+            width: 2rem;
+        }
+        .crit-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .crit-name {
+            flex: 1;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .crit-deps {
+            font-size: 0.75rem;
+            color: #8b949e;
+        }
+        .crit-scale {
+            padding: 0.5rem 0;
+        }
+        .crit-scale-bar {
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(to right, #58a6ff, #f0883e, #f85149);
+        }
+        .crit-scale-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.625rem;
+            color: #8b949e;
+            margin-top: 0.25rem;
+        }
+        /* Composition view */
+        .composition-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .layer-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .layer-toggle button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .layer-toggle button:hover { background: #30363d; }
+        .layer-toggle button.active {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        .layer-toggle button:focus-visible {
+            outline: 2px solid #58a6ff;
+            outline-offset: 2px;
+        }
+        .layer-toggle button.layer-interface { border-left: 3px solid #a371f7; }
+        .layer-toggle button.layer-provider { border-left: 3px solid #58a6ff; }
+        .layer-toggle button.layer-instance { border-left: 3px solid #3fb950; }
+        .dual-pane {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .pane {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .pane-header {
+            background: #21262d;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+        }
+        .pane-content {
+            padding: 0.75rem;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.75rem;
+            white-space: pre;
+            overflow-x: auto;
+            min-height: 200px;
+        }
+        .layer-badge {
+            display: inline-block;
+            font-size: 0.625rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            margin-bottom: 0.5rem;
+        }
+        .layer-badge.interface { background: #a371f733; color: #a371f7; }
+        .layer-badge.provider { background: #58a6ff33; color: #58a6ff; }
+        .layer-badge.instance { background: #3fb95033; color: #3fb950; }
+        .layer-badge.unified { background: #f0883e33; color: #f0883e; }
+        .syntax-keyword { color: #ff7b72; }
+        .syntax-string { color: #a5d6ff; }
+        .syntax-param { color: #ffa657; }
+        .syntax-comment { color: #8b949e; }
+        .syntax-field { color: #79c0ff; }
+        /* Composition selectors */
+        .comp-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .comp-select:hover { background: #30363d; }
+        .comp-label {
+            font-size: 0.75rem;
+            color: #8b949e;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="https://github.com/quicue/quicue">quicue</a> <span>/ graph explorer</span></h1>
+        <select id="example-select">
+            <option value="graph-patterns">graph-patterns (5 nodes)</option>
+            <option value="multi-region">multi-region (22 nodes)</option>
+        </select>
+        <nav>
+            <button class="active" data-view="graph">Graph</button>
+            <button data-view="edges">Edges</button>
+            <button data-view="criticality">Criticality</button>
+            <button data-view="api">Patterns</button>
+            <button data-view="composition">Composition</button>
+        </nav>
+        <div class="links">
+            <a href="https://github.com/quicue/quicue">GitHub</a>
+            <a href="https://github.com/quicue/quicue#readme">Docs</a>
+        </div>
+    </header>
+    <div id="metrics-bar" style="background: #161b22; padding: 0.5rem 2rem; border-bottom: 1px solid #30363d; font-size: 0.8rem; display: flex; gap: 2rem;">
+        <span><strong id="metric-total">-</strong> resources</span>
+        <span>depth <strong id="metric-depth">-</strong></span>
+        <span><strong id="metric-edges">-</strong> edges</span>
+        <span><strong id="metric-roots">-</strong> roots</span>
+        <span><strong id="metric-leaves">-</strong> leaves</span>
+        <span style="margin-left: auto;">
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="impact-mode" style="margin-right: 0.5rem;">
+                Impact mode
+            </label>
+        </span>
+    </div>
+    <main>
+        <div id="cy"></div>
+        <aside>
+            <!-- Graph View -->
+            <div class="view active" id="view-graph">
+                <div class="panel" id="node-details">
+                    <h2>Selected Node</h2>
+                    <div class="info-row">
+                        <span class="info-label">Name</span>
+                        <span class="info-value" id="detail-name">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Depth</span>
+                        <span class="info-value" id="detail-depth">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Dependents</span>
+                        <span class="info-value" id="detail-dependents">-</span>
+                    </div>
+                    <div style="margin-top: 0.75rem;">
+                        <span class="info-label">Types</span>
+                        <div id="detail-types" style="margin-top: 0.5rem;"></div>
+                    </div>
+                </div>
+                <div class="panel" id="edge-details">
+                    <h2>Selected Edge</h2>
+                    <div class="info-row">
+                        <span class="info-label">From</span>
+                        <span class="info-value" id="edge-source">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">To</span>
+                        <span class="info-value" id="edge-target">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Relation</span>
+                        <span class="info-value">depends_on</span>
+                    </div>
+                    <div style="margin-top: 0.75rem;">
+                        <span class="info-label">JSON-LD IRI</span>
+                        <div style="margin-top: 0.5rem; font-family: monospace; font-size: 0.7rem; word-break: break-all;">
+                            <span id="edge-iri">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <h2>Node Colors (Criticality)</h2>
+                    <div class="crit-scale">
+                        <div class="crit-scale-bar"></div>
+                        <div class="crit-scale-labels">
+                            <span>0 dependents</span>
+                            <span>max dependents</span>
+                        </div>
+                    </div>
+                    <div class="help" style="margin-top: 0.75rem;">
+                        More critical resources (more dependents) appear redder.
+                        Enable <strong>Impact mode</strong> to see what fails if a resource goes down.
+                    </div>
+                </div>
+                <div class="panel">
+                    <h2>Controls</h2>
+                    <div class="help">
+                        <p><strong>Click</strong> node/edge to select</p>
+                        <p><strong>Drag</strong> to pan</p>
+                        <p><strong>Scroll</strong> to zoom</p>
+                        <p><strong>Double-click</strong> to fit</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edges View -->
+            <div class="view" id="view-edges">
+                <div class="panel">
+                    <h2>All Edges (depends_on)</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Each edge represents a <code>depends_on</code> relationship.
+                        With JSON-LD <code>@base</code>, these resolve to full IRIs.
+                    </div>
+                    <div id="edge-list"></div>
+                </div>
+                <div class="panel">
+                    <h2>JSON-LD Resolution</h2>
+                    <div class="code-block">@base: "https://infra.example.com/resources/"
+
+"dns-primary"
+  → https://infra.example.com/resources/dns-primary</div>
+                </div>
+            </div>
+
+            <!-- Criticality View -->
+            <div class="view" id="view-criticality">
+                <div class="panel">
+                    <h2>Criticality Ranking</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Resources ranked by dependent count.
+                        Click to highlight in graph.
+                    </div>
+                    <div id="criticality-list"></div>
+                </div>
+                <div class="panel">
+                    <h2>Color Scale</h2>
+                    <div class="crit-scale">
+                        <div class="crit-scale-bar"></div>
+                        <div class="crit-scale-labels">
+                            <span>0 deps</span>
+                            <span>max deps</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API/Patterns View -->
+            <div class="view" id="view-api">
+                <div class="panel">
+                    <h2>Query Patterns</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        CUE patterns for querying the infrastructure graph.
+                        Import from <code>quicue.ca/patterns@v0</code>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#InfraGraph.topology</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Layer ordering by dependency depth. Layer 0 = roots.</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">infra: #InfraGraph & {Input: resources}
+infra.topology.layer_0  // roots
+infra.topology.layer_1  // depth 1</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#InfraGraph.roots</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Resources with no dependencies (entry points).</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">infra.roots  // ["pve-node"]</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#InfraGraph.leaves</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Resources nothing depends on (endpoints).</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">infra.leaves  // ["git-server", "monitoring"]</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#ImpactQuery</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Find all resources affected if target fails.</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">impact: #ImpactQuery & {
+    Graph: infra
+    Target: "dns-primary"
+}
+impact.affected  // ["reverse-proxy", "git-server", ...]</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#DependencyChain</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Get full dependency path to root.</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">chain: #DependencyChain & {
+    Graph: infra
+    Target: "git-server"
+}
+chain.path  // ["git-server", "dns-primary", "pve-node"]</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#CriticalityRank</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Rank resources by dependent count.</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">crit: #CriticalityRank & {Graph: infra}
+crit.ranked[0]  // {name: "pve-node", dependents: 4}</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#ImmediateDependents</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Direct dependents only (not transitive).</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">deps: #ImmediateDependents & {
+    Graph: infra
+    Target: "dns-primary"
+}
+deps.dependents  // ["reverse-proxy", "git-server", "monitoring"]</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#GroupByType</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Group resources by @type.</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">byType: #GroupByType & {Graph: infra}
+byType.groups.DNSServer  // ["dns-primary"]
+byType.groups.LXCContainer  // ["dns-primary", ...]</div>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#ValidateGraph</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Check for missing deps, self-refs, empty types.</div>
+                        <div class="code-label">Usage</div>
+                        <div class="code-block">validate: #ValidateGraph & {Input: resources}
+validate.valid  // true/false
+validate.issues.missing_dependencies</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Composition View -->
+            <div class="view" id="view-composition">
+                <div class="panel">
+                    <h2>3-Layer Composition</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Select a resource and action to see how CUE unifies constraints into concrete values.
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div>
+                            <label class="comp-label">Resource</label>
+                            <select id="comp-resource" class="comp-select">
+                                <option value="dns-server">dns-server</option>
+                                <option value="git-server">git-server</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="comp-label">Action</label>
+                            <select id="comp-action" class="comp-select">
+                                <option value="console">console (LXC)</option>
+                                <option value="logs">logs (LXC)</option>
+                                <option value="config">config (LXC)</option>
+                                <option value="status">status (LXC)</option>
+                                <option value="ping">ping (Network)</option>
+                                <option value="ssh">ssh (Network)</option>
+                            </select>
+                        </div>
+                        <div class="layer-toggle" style="margin-left: auto;">
+                            <button class="layer-interface active" data-layer="interface">Interface</button>
+                            <button class="layer-provider active" data-layer="provider">Provider</button>
+                            <button class="layer-instance active" data-layer="instance">Instance</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2 id="comp-title">dns-server.actions.console</h2>
+                    <div class="dual-pane">
+                        <div class="pane">
+                            <div class="pane-header">Expression (CUE)</div>
+                            <div class="pane-content" id="expr-pane"></div>
+                        </div>
+                        <div class="pane">
+                            <div class="pane-header">Evaluates To</div>
+                            <div class="pane-content" id="eval-pane"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>How It Works</h2>
+                    <div class="help">
+                        <p><strong>1. Interface</strong> (quicue.ca) defines the schema - what fields an action must have.</p>
+                        <p style="margin-top: 0.5rem;"><strong>2. Provider</strong> (e.g., Proxmox) provides templates with UPPERCASE parameters.</p>
+                        <p style="margin-top: 0.5rem;"><strong>3. Instance</strong> (your infra) binds concrete values to parameters.</p>
+                        <p style="margin-top: 0.75rem;">CUE unifies all layers, substituting parameters and validating against the schema.</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Try It</h2>
+                    <div class="code-block">./quicue eval 3-layer</div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+    // Load graph data from JSON file
+    let graphData = null;
+    let cy = null;
+    let domHandlersInitialized = false;
+    const BASE_IRI = 'https://infra.example.com/resources/';
+
+    // Type categories for badge styling
+    const typeCategories = {
+        DNSServer: 'semantic', ReverseProxy: 'semantic', SourceControlManagement: 'semantic',
+        MonitoringServer: 'semantic', VirtualizationPlatform: 'semantic',
+        LXCContainer: 'implementation', VirtualMachine: 'implementation', DockerContainer: 'implementation',
+        CriticalInfra: 'classification'
+    };
+
+    // Criticality color: blue (0 deps) → orange (mid) → red (max deps)
+    function criticalityColor(dependents, maxDependents) {
+        if (maxDependents === 0) return '#58a6ff';
+        const ratio = dependents / maxDependents;
+        if (ratio < 0.5) {
+            // Blue to orange
+            const r = Math.round(88 + (240 - 88) * (ratio * 2));
+            const g = Math.round(166 + (136 - 166) * (ratio * 2));
+            const b = Math.round(255 + (62 - 255) * (ratio * 2));
+            return `rgb(${r},${g},${b})`;
+        } else {
+            // Orange to red
+            const r = Math.round(240 + (248 - 240) * ((ratio - 0.5) * 2));
+            const g = Math.round(136 - 136 * ((ratio - 0.5) * 2));
+            const b = Math.round(62 - 62 * ((ratio - 0.5) * 2));
+            return `rgb(${r},${g},${b})`;
+        }
+    }
+
+    // Node color based on criticality (dependent count)
+    function nodeColor(node) {
+        const data = node.data();
+        const maxDeps = graphData ? Math.max(...graphData.nodes.map(n => n.dependents)) : 0;
+        return criticalityColor(data.dependents, maxDeps);
+    }
+
+    // Initialize visualization with loaded data
+    async function init(exampleName = 'graph-patterns') {
+        try {
+            const response = await fetch(`data/${exampleName}.json`);
+            graphData = await response.json();
+        } catch (e) {
+            // Fallback to embedded data if fetch fails
+            graphData = {
+                nodes: [
+                    { id: 'pve-node', types: ['VirtualizationPlatform'], depth: 0, dependents: 4, ancestors: [] },
+                    { id: 'dns-primary', types: ['DNSServer', 'CriticalInfra'], depth: 1, dependents: 3, ancestors: ['pve-node'] },
+                    { id: 'reverse-proxy', types: ['ReverseProxy'], depth: 2, dependents: 1, ancestors: ['dns-primary', 'pve-node'] },
+                    { id: 'git-server', types: ['SourceControlManagement'], depth: 3, dependents: 0, ancestors: ['dns-primary', 'reverse-proxy', 'pve-node'] },
+                    { id: 'monitoring', types: ['MonitoringServer'], depth: 2, dependents: 0, ancestors: ['dns-primary', 'pve-node'] }
+                ],
+                edges: [
+                    { source: 'pve-node', target: 'dns-primary' },
+                    { source: 'dns-primary', target: 'reverse-proxy' },
+                    { source: 'dns-primary', target: 'git-server' },
+                    { source: 'dns-primary', target: 'monitoring' },
+                    { source: 'reverse-proxy', target: 'git-server' }
+                ],
+                metrics: { total: 5, maxDepth: 3, edges: 5, roots: 1, leaves: 2 },
+                criticality: [
+                    { name: 'pve-node', dependents: 4 },
+                    { name: 'dns-primary', dependents: 3 },
+                    { name: 'reverse-proxy', dependents: 1 },
+                    { name: 'git-server', dependents: 0 },
+                    { name: 'monitoring', dependents: 0 }
+                ],
+                roots: ['pve-node'],
+                leaves: ['git-server', 'monitoring'],
+                validation: { valid: true, issues: [] }
+            };
+        }
+
+        // Update metrics bar
+        const m = graphData.metrics;
+        document.getElementById('metric-total').textContent = m.total;
+        document.getElementById('metric-depth').textContent = m.maxDepth;
+        document.getElementById('metric-edges').textContent = m.edges;
+        document.getElementById('metric-roots').textContent = m.roots;
+        document.getElementById('metric-leaves').textContent = m.leaves;
+
+        // Find roots for layout
+        const rootIds = graphData.roots || graphData.nodes.filter(n => n.depth === 0).map(n => n.id);
+
+        // Destroy old instance if exists
+        if (cy) {
+            cy.destroy();
+        }
+
+        // Initialize Cytoscape
+        cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [
+                ...graphData.nodes.map(n => ({
+                    data: { id: n.id, ...n },
+                    classes: n.depth === 0 ? 'root' : (n.dependents === 0 ? 'leaf' : '')
+                })),
+                ...graphData.edges.map(e => ({
+                    data: { id: `${e.source}-${e.target}`, source: e.source, target: e.target }
+                }))
+            ],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'label': 'data(id)',
+                        'text-valign': 'bottom',
+                        'text-margin-y': 8,
+                        'font-size': 12,
+                        'font-family': '-apple-system, BlinkMacSystemFont, sans-serif',
+                        'color': '#c9d1d9',
+                        'background-color': nodeColor,
+                        'width': 40,
+                        'height': 40,
+                        'border-width': 2,
+                        'border-color': '#30363d'
+                    }
+                },
+                {
+                    selector: 'node:selected',
+                    style: {
+                        'border-width': 3,
+                        'border-color': '#ffffff'
+                    }
+                },
+                {
+                    selector: 'node.dimmed',
+                    style: {
+                        'opacity': 0.25
+                    }
+                },
+                {
+                    selector: 'node.impact-highlight',
+                    style: {
+                        'border-width': 3,
+                        'border-color': '#f85149'
+                    }
+                },
+                {
+                    selector: 'node.impact-source',
+                    style: {
+                        'border-width': 4,
+                        'border-color': '#f85149',
+                        'background-color': '#f85149'
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'line-color': '#30363d',
+                        'target-arrow-color': '#30363d',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'arrow-scale': 1
+                    }
+                },
+                {
+                    selector: 'edge:selected',
+                    style: {
+                        'line-color': '#58a6ff',
+                        'target-arrow-color': '#58a6ff'
+                    }
+                },
+                {
+                    selector: 'edge.dimmed',
+                    style: {
+                        'opacity': 0.15
+                    }
+                },
+                {
+                    selector: 'edge.impact-highlight',
+                    style: {
+                        'line-color': '#f85149',
+                        'target-arrow-color': '#f85149',
+                        'width': 3
+                    }
+                }
+            ],
+            layout: {
+                name: 'breadthfirst',
+                directed: true,
+                roots: rootIds.map(id => `#${id}`).join(', '),
+                spacingFactor: 1.5,
+                padding: 50
+            }
+        });
+
+        // Wire up event handlers
+        setupEventHandlers();
+        populateEdgeList();
+        populateCriticalityView();
+    }
+
+    function setupEventHandlers() {
+        // DOM handlers - only add once
+        if (!domHandlersInitialized) {
+            // View switching
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+                    // Toggle full-width for composition view
+                    const main = document.querySelector('main');
+                    if (btn.dataset.view === 'composition') {
+                        main.classList.add('composition-active');
+                        document.body.classList.add('composition-active');
+                    } else {
+                        main.classList.remove('composition-active');
+                        document.body.classList.remove('composition-active');
+                    }
+                });
+            });
+
+            // Impact mode toggle
+            document.getElementById('impact-mode').addEventListener('change', (e) => {
+                if (!e.target.checked) {
+                    clearImpactHighlight();
+                }
+            });
+
+            domHandlersInitialized = true;
+        }
+
+        // Cytoscape handlers - re-add each init since cy is recreated
+        // Node selection handler
+        cy.on('tap', 'node', function(evt) {
+            const node = evt.target;
+            const data = node.data();
+
+            // Handle impact mode
+            if (document.getElementById('impact-mode').checked) {
+                showImpact(data.id);
+            }
+
+            // Show node details
+            document.getElementById('edge-details').classList.remove('active');
+            document.getElementById('detail-name').textContent = data.id;
+            document.getElementById('detail-depth').textContent = data.depth;
+            document.getElementById('detail-dependents').textContent = data.dependents;
+
+            const typesEl = document.getElementById('detail-types');
+            typesEl.innerHTML = data.types.map(t =>
+                `<span class="type-badge ${typeCategories[t] || ''}">${t}</span>`
+            ).join('');
+
+            document.getElementById('node-details').classList.add('active');
+        });
+
+        // Edge selection handler
+        cy.on('tap', 'edge', function(evt) {
+            const edge = evt.target;
+            const source = edge.source().id();
+            const target = edge.target().id();
+            showEdgeDetails(source, target);
+        });
+
+        // Background click clears selection
+        cy.on('tap', function(evt) {
+            if (evt.target === cy) {
+                document.getElementById('node-details').classList.remove('active');
+                document.getElementById('edge-details').classList.remove('active');
+                if (document.getElementById('impact-mode').checked) {
+                    clearImpactHighlight();
+                }
+            }
+        });
+
+        // Double-click to fit
+        cy.on('dbltap', function() {
+            cy.fit(50);
+        });
+    }
+
+    function populateEdgeList() {
+        const edgeListEl = document.getElementById('edge-list');
+        edgeListEl.innerHTML = '';
+        graphData.edges.forEach(e => {
+            const div = document.createElement('div');
+            div.className = 'edge-item';
+            div.innerHTML = `
+                <span>${e.source}</span>
+                <span class="edge-arrow">→</span>
+                <span>${e.target}</span>
+                <span class="edge-type">depends_on</span>
+            `;
+            div.addEventListener('click', () => {
+                cy.edges().unselect();
+                cy.nodes().unselect();
+                const edge = cy.getElementById(`${e.source}-${e.target}`);
+                edge.select();
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.querySelector('nav button[data-view="graph"]').classList.add('active');
+                document.getElementById('view-graph').classList.add('active');
+                showEdgeDetails(e.source, e.target);
+            });
+            edgeListEl.appendChild(div);
+        });
+    }
+
+    function populateCriticalityView() {
+        const listEl = document.getElementById('criticality-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const sorted = [...graphData.criticality].sort((a, b) => b.dependents - a.dependents);
+        const maxDeps = sorted.length > 0 ? sorted[0].dependents : 0;
+
+        sorted.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'crit-item';
+            div.innerHTML = `
+                <span class="crit-rank">#${idx + 1}</span>
+                <span class="crit-color" style="background: ${criticalityColor(item.dependents, maxDeps)};"></span>
+                <span class="crit-name">${item.name}</span>
+                <span class="crit-deps">${item.dependents} dependents</span>
+            `;
+            div.addEventListener('click', () => {
+                // Switch to graph view and highlight
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.querySelector('nav button[data-view="graph"]').classList.add('active');
+                document.getElementById('view-graph').classList.add('active');
+                // Select the node
+                cy.nodes().unselect();
+                cy.getElementById(item.name).select();
+                // Show impact if impact mode is on
+                if (document.getElementById('impact-mode').checked) {
+                    showImpact(item.name);
+                }
+            });
+            listEl.appendChild(div);
+        });
+    }
+
+    function showEdgeDetails(source, target) {
+        document.getElementById('node-details').classList.remove('active');
+        document.getElementById('edge-details').classList.add('active');
+        document.getElementById('edge-source').textContent = source;
+        document.getElementById('edge-target').textContent = target;
+        document.getElementById('edge-iri').textContent = `${BASE_IRI}${target} depends_on ${BASE_IRI}${source}`;
+    }
+
+    // Impact highlighting: show all nodes affected if target fails
+    function showImpact(targetId) {
+        clearImpactHighlight();
+
+        // Find all nodes that have targetId in their ancestors
+        const affected = graphData.nodes.filter(n => n.ancestors && n.ancestors.includes(targetId));
+        const affectedIds = affected.map(n => n.id);
+
+        // Dim everything first
+        cy.nodes().addClass('dimmed');
+        cy.edges().addClass('dimmed');
+
+        // Highlight the source node
+        cy.getElementById(targetId).removeClass('dimmed').addClass('impact-source');
+
+        // Highlight affected nodes
+        affectedIds.forEach(id => {
+            cy.getElementById(id).removeClass('dimmed').addClass('impact-highlight');
+        });
+
+        // Highlight edges between affected nodes and source
+        cy.edges().forEach(edge => {
+            const src = edge.source().id();
+            const tgt = edge.target().id();
+            if ((src === targetId && affectedIds.includes(tgt)) ||
+                (affectedIds.includes(src) && affectedIds.includes(tgt))) {
+                edge.removeClass('dimmed').addClass('impact-highlight');
+            }
+        });
+
+        // Update impact panel if exists
+        const impactCount = document.getElementById('impact-count');
+        if (impactCount) {
+            impactCount.textContent = `${affectedIds.length} affected`;
+        }
+    }
+
+    function clearImpactHighlight() {
+        cy.nodes().removeClass('dimmed impact-highlight impact-source');
+        cy.edges().removeClass('dimmed impact-highlight');
+    }
+
+    // Example selector
+    document.getElementById('example-select').addEventListener('change', (e) => {
+        init(e.target.value);
+    });
+
+    // Precomputed composition data for all resources and actions
+    const compositionData = {
+        resources: {
+            'dns-server': {
+                ip: '10.0.1.10',
+                host: 'pve-node-1',
+                container_id: 100,
+                user: 'root'
+            },
+            'git-server': {
+                ip: '10.0.1.20',
+                host: 'pve-node-2',
+                container_id: 200,
+                user: 'git'
+            }
+        },
+        actions: {
+            // LXC actions (ProxmoxLXC provider)
+            console: {
+                provider: 'ProxmoxLXC',
+                name: 'Console',
+                description: 'Enter LXC container console',
+                category: 'connect',
+                template: "ssh -t \\(HOST) 'pct enter \\(CONTAINER_ID)'",
+                params: ['HOST', 'CONTAINER_ID']
+            },
+            logs: {
+                provider: 'ProxmoxLXC',
+                name: 'Logs',
+                description: 'View container logs',
+                category: 'info',
+                template: "ssh \\(HOST) 'pct exec \\(CONTAINER_ID) -- journalctl -n 50'",
+                params: ['HOST', 'CONTAINER_ID']
+            },
+            config: {
+                provider: 'ProxmoxLXC',
+                name: 'Config',
+                description: 'Get LXC container config',
+                category: 'info',
+                template: "ssh \\(HOST) 'pct config \\(CONTAINER_ID)'",
+                params: ['HOST', 'CONTAINER_ID']
+            },
+            status: {
+                provider: 'ProxmoxLXC',
+                name: 'Status',
+                description: 'Get LXC container status',
+                category: 'monitor',
+                template: "ssh \\(HOST) 'pct status \\(CONTAINER_ID)'",
+                params: ['HOST', 'CONTAINER_ID']
+            },
+            // Network actions (Connectivity provider)
+            ping: {
+                provider: 'Connectivity',
+                name: 'Ping',
+                description: 'Test network connectivity',
+                category: 'connect',
+                template: 'ping -c 3 \\(IP)',
+                params: ['IP']
+            },
+            ssh: {
+                provider: 'Connectivity',
+                name: 'SSH',
+                description: 'SSH to resource',
+                category: 'connect',
+                template: 'ssh \\(USER)@\\(IP)',
+                params: ['USER', 'IP']
+            }
+        },
+        // Precomputed final commands
+        computed: {
+            'dns-server': {
+                console: "ssh -t pve-node-1 'pct enter 100'",
+                logs: "ssh pve-node-1 'pct exec 100 -- journalctl -n 50'",
+                config: "ssh pve-node-1 'pct config 100'",
+                status: "ssh pve-node-1 'pct status 100'",
+                ping: 'ping -c 3 10.0.1.10',
+                ssh: 'ssh root@10.0.1.10'
+            },
+            'git-server': {
+                console: "ssh -t pve-node-2 'pct enter 200'",
+                logs: "ssh pve-node-2 'pct exec 200 -- journalctl -n 50'",
+                config: "ssh pve-node-2 'pct config 200'",
+                status: "ssh pve-node-2 'pct status 200'",
+                ping: 'ping -c 3 10.0.1.20',
+                ssh: 'ssh git@10.0.1.20'
+            }
+        }
+    };
+
+    function getProviderExpr(action, resource) {
+        const a = compositionData.actions[action];
+        const r = compositionData.resources[resource];
+        const isLXC = a.provider === 'ProxmoxLXC';
+
+        if (isLXC) {
+            return `<span class="layer-badge provider">PROVIDER</span>
+<span class="syntax-keyword">#ProxmoxLXC</span>: {
+  <span class="syntax-param">CONTAINER_ID</span>: <span class="syntax-keyword">int</span>
+  <span class="syntax-param">HOST</span>:         <span class="syntax-keyword">string</span>
+
+  <span class="syntax-field">${action}</span>: <span class="syntax-keyword">#Action</span> & {
+    <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+    <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+    <span class="syntax-field">command</span>:     <span class="syntax-string">"${a.template}"</span>
+    <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+  }
+}`;
+        } else {
+            return `<span class="layer-badge provider">PROVIDER</span>
+<span class="syntax-keyword">#Connectivity</span>: {
+  <span class="syntax-param">IP</span>:   <span class="syntax-keyword">string</span>
+  <span class="syntax-param">USER</span>: <span class="syntax-keyword">string</span>
+
+  <span class="syntax-field">${action}</span>: <span class="syntax-keyword">#Action</span> & {
+    <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+    <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+    <span class="syntax-field">command</span>:     <span class="syntax-string">"${a.template}"</span>
+    <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+  }
+}`;
+        }
+    }
+
+    function getInstanceExpr(action, resource) {
+        const a = compositionData.actions[action];
+        const r = compositionData.resources[resource];
+        const isLXC = a.provider === 'ProxmoxLXC';
+
+        if (isLXC) {
+            return `<span class="layer-badge instance">INSTANCE</span>
+<span class="syntax-string">"${resource}"</span>: {
+  <span class="syntax-field">host</span>:         <span class="syntax-string">"${r.host}"</span>
+  <span class="syntax-field">container_id</span>: <span class="syntax-keyword">${r.container_id}</span>
+
+  <span class="syntax-field">actions</span>: <span class="syntax-keyword">#ProxmoxLXC</span> & {
+    <span class="syntax-param">HOST</span>:         <span class="syntax-field">host</span>
+    <span class="syntax-param">CONTAINER_ID</span>: <span class="syntax-field">container_id</span>
+  }
+}`;
+        } else {
+            return `<span class="layer-badge instance">INSTANCE</span>
+<span class="syntax-string">"${resource}"</span>: {
+  <span class="syntax-field">ip</span>:   <span class="syntax-string">"${r.ip}"</span>
+  <span class="syntax-field">user</span>: <span class="syntax-string">"${r.user}"</span>
+
+  <span class="syntax-field">actions</span>: <span class="syntax-keyword">#Connectivity</span> & {
+    <span class="syntax-param">IP</span>:   <span class="syntax-field">ip</span>
+    <span class="syntax-param">USER</span>: <span class="syntax-field">user</span>
+  }
+}`;
+        }
+    }
+
+    function updateCompositionView() {
+        const resource = document.getElementById('comp-resource').value;
+        const action = document.getElementById('comp-action').value;
+        const activeLayers = [];
+        document.querySelectorAll('.layer-toggle button.active').forEach(btn => {
+            activeLayers.push(btn.dataset.layer);
+        });
+
+        // Update title
+        document.getElementById('comp-title').textContent = `${resource}.actions.${action}`;
+
+        const exprPane = document.getElementById('expr-pane');
+        const evalPane = document.getElementById('eval-pane');
+        const a = compositionData.actions[action];
+        const computed = compositionData.computed[resource][action];
+
+        if (activeLayers.length === 0) {
+            exprPane.innerHTML = '<span class="syntax-comment">// Select a layer to see the expression</span>';
+            evalPane.innerHTML = '<span class="syntax-comment">// No layers selected</span>';
+            return;
+        }
+
+        // Build expression from active layers
+        const exprParts = [];
+        if (activeLayers.includes('interface')) {
+            exprParts.push(`<span class="layer-badge interface">INTERFACE</span>
+<span class="syntax-keyword">#Action</span>: {
+  <span class="syntax-field">name</span>:        <span class="syntax-keyword">string</span>
+  <span class="syntax-field">description</span>: <span class="syntax-keyword">string</span>
+  <span class="syntax-field">command</span>:     <span class="syntax-keyword">string</span>
+  <span class="syntax-field">category</span>?:   <span class="syntax-keyword">string</span>
+}`);
+        }
+        if (activeLayers.includes('provider')) {
+            exprParts.push(getProviderExpr(action, resource));
+        }
+        if (activeLayers.includes('instance')) {
+            exprParts.push(getInstanceExpr(action, resource));
+        }
+        exprPane.innerHTML = exprParts.join('\n\n');
+
+        // Show evaluation based on which layers are active
+        if (activeLayers.includes('instance')) {
+            evalPane.innerHTML = `<span class="layer-badge unified">UNIFIED</span>
+<span class="syntax-field">${action}</span>: {
+  <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+  <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+  <span class="syntax-field">command</span>:     <span class="syntax-string">"${computed}"</span>
+  <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+}`;
+        } else if (activeLayers.includes('provider')) {
+            evalPane.innerHTML = `<span class="syntax-comment">// Template with unbound parameters</span>
+<span class="syntax-field">${action}</span>: {
+  <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+  <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+  <span class="syntax-field">command</span>:     <span class="syntax-string">"${a.template}"</span>
+  <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+}`;
+        } else if (activeLayers.includes('interface')) {
+            evalPane.innerHTML = `<span class="syntax-comment">// Schema only - no concrete values yet</span>
+<span class="syntax-field">name</span>:        <span class="syntax-keyword">string</span>
+<span class="syntax-field">description</span>: <span class="syntax-keyword">string</span>
+<span class="syntax-field">command</span>:     <span class="syntax-keyword">string</span>
+<span class="syntax-field">category</span>?:   <span class="syntax-keyword">string</span>`;
+        }
+    }
+
+    // Composition view event handlers
+    document.getElementById('comp-resource').addEventListener('change', updateCompositionView);
+    document.getElementById('comp-action').addEventListener('change', updateCompositionView);
+    document.querySelectorAll('.layer-toggle button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.classList.toggle('active');
+            updateCompositionView();
+        });
+    });
+
+    // Initialize composition view
+    updateCompositionView();
+
+    // Initialize on load
+    init();
+    </script>
+</body>
+</html>

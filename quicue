@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# quicue - thin wrapper for CUE infrastructure-as-graph
+# Shows commands before running them for learning/debugging
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+QUICUE_DIR="${QUICUE_DIR:-$SCRIPT_DIR}"
+
+run() {
+    echo "$ $*" >&2
+    "$@"
+}
+
+# Resolve path: example name -> examples/name, or keep as-is for user paths
+resolve_example() {
+    local path="$1"
+    if [[ -d "${QUICUE_DIR}/examples/${path}" ]]; then
+        echo "examples/${path}/"
+    elif [[ -d "$path" ]] || [[ -f "$path" ]]; then
+        echo "$path"
+    else
+        echo "Error: '${path}' not found" >&2
+        echo "Available examples: $(ls -1 "${QUICUE_DIR}/examples" 2>/dev/null | tr '\n' ' ')" >&2
+        exit 1
+    fi
+}
+
+case "${1:-help}" in
+    eval)
+        # quicue eval [path] [expr]
+        path="${2:-graph-patterns}"
+        expr="${3:-output}"
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+        run cue eval "./${resolved}" -e "$expr"
+        ;;
+    export)
+        # quicue export [path]
+        path="${2:-jsonld-export}"
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+        run cue export "./${resolved}" --out json
+        ;;
+    vet)
+        # Validate all quicue files, or a specific path
+        cd "$QUICUE_DIR"
+        if [[ -n "${2:-}" ]]; then
+            run cue vet "$2"
+        else
+            run cue vet ./vocab/...
+            run cue vet ./patterns/...
+            run cue vet -c=false ./examples/...
+        fi
+        ;;
+    mermaid)
+        cd "$QUICUE_DIR"
+        run cue export ./examples/graph-patterns/ -e mermaid --out text
+        ;;
+    context)
+        cd "$QUICUE_DIR"
+        run cue export ./vocab/ -e context --out json
+        ;;
+    list)
+        echo "Available examples:"
+        ls -1 "${QUICUE_DIR}/examples"
+        ;;
+    help|*)
+        cat <<'EOF'
+quicue - CUE vocabulary for infrastructure-as-graph
+
+Usage:
+  quicue eval [path] [expr]   Evaluate CUE (default: graph-patterns, output)
+  quicue export [path]        Export as JSON (default: jsonld-export)
+  quicue vet [path]           Validate CUE files (default: all)
+  quicue mermaid              Generate mermaid diagram
+  quicue context              Export JSON-LD @context
+  quicue list                 List bundled examples
+
+Path can be:
+  - Example name:  graph-patterns, 3-layer, type-composition, jsonld-export, multi-region
+  - Directory:     ./my-infra/
+  - File:          ./my-infra.cue
+
+Examples:
+  quicue eval                           # graph-patterns output
+  quicue eval 3-layer                   # 3-layer example
+  quicue eval ./my-infra/ output        # your own files
+  quicue export ./my-infra/             # export your files as JSON
+
+Environment:
+  QUICUE_DIR   Path to quicue repo (default: script directory)
+EOF
+        ;;
+esac

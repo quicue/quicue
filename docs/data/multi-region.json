@@ -1,0 +1,701 @@
+{
+    "nodes": [
+        {
+            "id": "region-us",
+            "types": [
+                "Region",
+                "AvailabilityZone"
+            ],
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 19
+        },
+        {
+            "id": "region-eu",
+            "types": [
+                "Region",
+                "AvailabilityZone"
+            ],
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 5
+        },
+        {
+            "id": "dns-us",
+            "types": [
+                "DNSServer",
+                "CriticalInfra"
+            ],
+            "depth": 1,
+            "ancestors": [
+                "region-us"
+            ],
+            "dependents": 16
+        },
+        {
+            "id": "dns-eu",
+            "types": [
+                "DNSServer",
+                "CriticalInfra"
+            ],
+            "depth": 1,
+            "ancestors": [
+                "region-eu"
+            ],
+            "dependents": 4
+        },
+        {
+            "id": "auth",
+            "types": [
+                "AuthServer",
+                "CriticalInfra"
+            ],
+            "depth": 1,
+            "ancestors": [
+                "region-us"
+            ],
+            "dependents": 16
+        },
+        {
+            "id": "lb-us",
+            "types": [
+                "LoadBalancer"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 4
+        },
+        {
+            "id": "lb-eu",
+            "types": [
+                "LoadBalancer"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-eu",
+                "auth",
+                "region-eu",
+                "region-us"
+            ],
+            "dependents": 2
+        },
+        {
+            "id": "mq",
+            "types": [
+                "MessageQueue"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 8
+        },
+        {
+            "id": "cache",
+            "types": [
+                "CacheCluster"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-us",
+                "region-us"
+            ],
+            "dependents": 6
+        },
+        {
+            "id": "db-primary",
+            "types": [
+                "Database",
+                "CriticalInfra"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 9
+        },
+        {
+            "id": "db-replica",
+            "types": [
+                "Database"
+            ],
+            "depth": 3,
+            "ancestors": [
+                "dns-eu",
+                "db-primary",
+                "region-eu",
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 2
+        },
+        {
+            "id": "search",
+            "types": [
+                "SearchIndex"
+            ],
+            "depth": 3,
+            "ancestors": [
+                "dns-us",
+                "mq",
+                "region-us",
+                "auth"
+            ],
+            "dependents": 3
+        },
+        {
+            "id": "api-us",
+            "types": [
+                "APIServer"
+            ],
+            "depth": 3,
+            "ancestors": [
+                "lb-us",
+                "db-primary",
+                "cache",
+                "mq",
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 3
+        },
+        {
+            "id": "api-eu",
+            "types": [
+                "APIServer"
+            ],
+            "depth": 4,
+            "ancestors": [
+                "lb-eu",
+                "db-replica",
+                "cache",
+                "dns-eu",
+                "auth",
+                "region-eu",
+                "region-us",
+                "db-primary",
+                "dns-us"
+            ],
+            "dependents": 1
+        },
+        {
+            "id": "web-us",
+            "types": [
+                "WebFrontend"
+            ],
+            "depth": 4,
+            "ancestors": [
+                "lb-us",
+                "api-us",
+                "dns-us",
+                "auth",
+                "region-us",
+                "db-primary",
+                "cache",
+                "mq"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "web-eu",
+            "types": [
+                "WebFrontend"
+            ],
+            "depth": 5,
+            "ancestors": [
+                "lb-eu",
+                "api-eu",
+                "dns-eu",
+                "auth",
+                "region-eu",
+                "region-us",
+                "db-replica",
+                "cache",
+                "db-primary",
+                "dns-us"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "worker-ingest",
+            "types": [
+                "Worker"
+            ],
+            "depth": 4,
+            "ancestors": [
+                "mq",
+                "db-primary",
+                "search",
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 1
+        },
+        {
+            "id": "worker-notify",
+            "types": [
+                "Worker"
+            ],
+            "depth": 4,
+            "ancestors": [
+                "mq",
+                "api-us",
+                "dns-us",
+                "auth",
+                "region-us",
+                "lb-us",
+                "db-primary",
+                "cache"
+            ],
+            "dependents": 1
+        },
+        {
+            "id": "job-cleanup",
+            "types": [
+                "ScheduledJob"
+            ],
+            "depth": 5,
+            "ancestors": [
+                "worker-ingest",
+                "db-primary",
+                "mq",
+                "search",
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "job-report",
+            "types": [
+                "ScheduledJob"
+            ],
+            "depth": 5,
+            "ancestors": [
+                "worker-notify",
+                "search",
+                "mq",
+                "api-us",
+                "dns-us",
+                "auth",
+                "region-us",
+                "lb-us",
+                "db-primary",
+                "cache"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "monitoring",
+            "types": [
+                "MonitoringServer"
+            ],
+            "depth": 2,
+            "ancestors": [
+                "dns-us",
+                "auth",
+                "region-us"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "logging",
+            "types": [
+                "LogAggregator"
+            ],
+            "depth": 3,
+            "ancestors": [
+                "dns-us",
+                "mq",
+                "region-us",
+                "auth"
+            ],
+            "dependents": 0
+        }
+    ],
+    "edges": [
+        {
+            "source": "region-us",
+            "target": "dns-us"
+        },
+        {
+            "source": "region-eu",
+            "target": "dns-eu"
+        },
+        {
+            "source": "region-us",
+            "target": "auth"
+        },
+        {
+            "source": "dns-us",
+            "target": "lb-us"
+        },
+        {
+            "source": "auth",
+            "target": "lb-us"
+        },
+        {
+            "source": "dns-eu",
+            "target": "lb-eu"
+        },
+        {
+            "source": "auth",
+            "target": "lb-eu"
+        },
+        {
+            "source": "dns-us",
+            "target": "mq"
+        },
+        {
+            "source": "auth",
+            "target": "mq"
+        },
+        {
+            "source": "dns-us",
+            "target": "cache"
+        },
+        {
+            "source": "dns-us",
+            "target": "db-primary"
+        },
+        {
+            "source": "auth",
+            "target": "db-primary"
+        },
+        {
+            "source": "dns-eu",
+            "target": "db-replica"
+        },
+        {
+            "source": "db-primary",
+            "target": "db-replica"
+        },
+        {
+            "source": "dns-us",
+            "target": "search"
+        },
+        {
+            "source": "mq",
+            "target": "search"
+        },
+        {
+            "source": "lb-us",
+            "target": "api-us"
+        },
+        {
+            "source": "db-primary",
+            "target": "api-us"
+        },
+        {
+            "source": "cache",
+            "target": "api-us"
+        },
+        {
+            "source": "mq",
+            "target": "api-us"
+        },
+        {
+            "source": "lb-eu",
+            "target": "api-eu"
+        },
+        {
+            "source": "db-replica",
+            "target": "api-eu"
+        },
+        {
+            "source": "cache",
+            "target": "api-eu"
+        },
+        {
+            "source": "lb-us",
+            "target": "web-us"
+        },
+        {
+            "source": "api-us",
+            "target": "web-us"
+        },
+        {
+            "source": "lb-eu",
+            "target": "web-eu"
+        },
+        {
+            "source": "api-eu",
+            "target": "web-eu"
+        },
+        {
+            "source": "mq",
+            "target": "worker-ingest"
+        },
+        {
+            "source": "db-primary",
+            "target": "worker-ingest"
+        },
+        {
+            "source": "search",
+            "target": "worker-ingest"
+        },
+        {
+            "source": "mq",
+            "target": "worker-notify"
+        },
+        {
+            "source": "api-us",
+            "target": "worker-notify"
+        },
+        {
+            "source": "worker-ingest",
+            "target": "job-cleanup"
+        },
+        {
+            "source": "db-primary",
+            "target": "job-cleanup"
+        },
+        {
+            "source": "worker-notify",
+            "target": "job-report"
+        },
+        {
+            "source": "search",
+            "target": "job-report"
+        },
+        {
+            "source": "dns-us",
+            "target": "monitoring"
+        },
+        {
+            "source": "auth",
+            "target": "monitoring"
+        },
+        {
+            "source": "dns-us",
+            "target": "logging"
+        },
+        {
+            "source": "mq",
+            "target": "logging"
+        }
+    ],
+    "topology": {
+        "layer_0": [
+            "region-us",
+            "region-eu"
+        ],
+        "layer_1": [
+            "dns-us",
+            "dns-eu",
+            "auth"
+        ],
+        "layer_2": [
+            "lb-us",
+            "lb-eu",
+            "mq",
+            "cache",
+            "db-primary",
+            "monitoring"
+        ],
+        "layer_3": [
+            "db-replica",
+            "search",
+            "api-us",
+            "logging"
+        ],
+        "layer_4": [
+            "api-eu",
+            "web-us",
+            "worker-ingest",
+            "worker-notify"
+        ],
+        "layer_5": [
+            "web-eu",
+            "job-cleanup",
+            "job-report"
+        ]
+    },
+    "roots": [
+        "region-us",
+        "region-eu"
+    ],
+    "leaves": [
+        "web-us",
+        "web-eu",
+        "job-cleanup",
+        "job-report",
+        "monitoring",
+        "logging"
+    ],
+    "criticality": [
+        {
+            "name": "region-us",
+            "dependents": 19
+        },
+        {
+            "name": "region-eu",
+            "dependents": 5
+        },
+        {
+            "name": "dns-us",
+            "dependents": 16
+        },
+        {
+            "name": "dns-eu",
+            "dependents": 4
+        },
+        {
+            "name": "auth",
+            "dependents": 16
+        },
+        {
+            "name": "lb-us",
+            "dependents": 4
+        },
+        {
+            "name": "lb-eu",
+            "dependents": 2
+        },
+        {
+            "name": "mq",
+            "dependents": 8
+        },
+        {
+            "name": "cache",
+            "dependents": 6
+        },
+        {
+            "name": "db-primary",
+            "dependents": 9
+        },
+        {
+            "name": "db-replica",
+            "dependents": 2
+        },
+        {
+            "name": "search",
+            "dependents": 3
+        },
+        {
+            "name": "api-us",
+            "dependents": 3
+        },
+        {
+            "name": "api-eu",
+            "dependents": 1
+        },
+        {
+            "name": "web-us",
+            "dependents": 0
+        },
+        {
+            "name": "web-eu",
+            "dependents": 0
+        },
+        {
+            "name": "worker-ingest",
+            "dependents": 1
+        },
+        {
+            "name": "worker-notify",
+            "dependents": 1
+        },
+        {
+            "name": "job-cleanup",
+            "dependents": 0
+        },
+        {
+            "name": "job-report",
+            "dependents": 0
+        },
+        {
+            "name": "monitoring",
+            "dependents": 0
+        },
+        {
+            "name": "logging",
+            "dependents": 0
+        }
+    ],
+    "byType": {
+        "Region": [
+            "region-us",
+            "region-eu"
+        ],
+        "AvailabilityZone": [
+            "region-us",
+            "region-eu"
+        ],
+        "DNSServer": [
+            "dns-us",
+            "dns-eu"
+        ],
+        "CriticalInfra": [
+            "dns-us",
+            "dns-eu",
+            "auth",
+            "db-primary"
+        ],
+        "AuthServer": [
+            "auth"
+        ],
+        "LoadBalancer": [
+            "lb-us",
+            "lb-eu"
+        ],
+        "MessageQueue": [
+            "mq"
+        ],
+        "CacheCluster": [
+            "cache"
+        ],
+        "Database": [
+            "db-primary",
+            "db-replica"
+        ],
+        "SearchIndex": [
+            "search"
+        ],
+        "APIServer": [
+            "api-us",
+            "api-eu"
+        ],
+        "WebFrontend": [
+            "web-us",
+            "web-eu"
+        ],
+        "Worker": [
+            "worker-ingest",
+            "worker-notify"
+        ],
+        "ScheduledJob": [
+            "job-cleanup",
+            "job-report"
+        ],
+        "MonitoringServer": [
+            "monitoring"
+        ],
+        "LogAggregator": [
+            "logging"
+        ]
+    },
+    "metrics": {
+        "total": 22,
+        "maxDepth": 5,
+        "edges": 40,
+        "roots": 2,
+        "leaves": 6
+    },
+    "validation": {
+        "valid": true,
+        "issues": []
+    }
+}
