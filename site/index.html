@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>quicue - Infrastructure Graph Explorer</title>
+    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        h1 { font-size: 1.5rem; font-weight: 600; }
+        h1 a { color: #c9d1d9; text-decoration: none; }
+        h1 span { color: #8b949e; font-weight: 400; }
+        nav {
+            display: flex;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+        nav button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            min-width: 90px;
+            text-align: center;
+        }
+        nav button:hover { background: #30363d; }
+        nav button.active {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        nav button:focus-visible,
+        select:focus-visible {
+            outline: 2px solid #58a6ff;
+            outline-offset: 2px;
+        }
+        .links a {
+            color: #58a6ff;
+            text-decoration: none;
+            margin-left: 1.5rem;
+        }
+        .links a:hover { text-decoration: underline; }
+        #example-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        #example-select:hover { background: #30363d; }
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #cy {
+            flex: 1;
+            background: #161b22;
+        }
+        aside {
+            width: 360px;
+            padding: 1.5rem;
+            border-left: 1px solid #30363d;
+            overflow-y: auto;
+            transition: width 0.2s ease;
+        }
+        /* Full-width mode for composition view */
+        main.composition-active #cy { display: none; }
+        main.composition-active aside {
+            width: 100%;
+            border-left: none;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        /* Hide graph-specific controls in composition view */
+        body.composition-active #metrics-bar { display: none; }
+        body.composition-active #insight-bar { display: none; }
+        body.composition-active #example-select { display: none; }
+        .panel { margin-bottom: 1.5rem; }
+        .panel h2 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b949e;
+            margin-bottom: 0.75rem;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .info-label { color: #8b949e; }
+        .info-value { font-family: monospace; }
+        .type-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: #21262d;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin: 0.25rem 0.25rem 0 0;
+        }
+        .type-badge.semantic { border-left: 3px solid #58a6ff; }
+        .type-badge.implementation { border-left: 3px solid #a371f7; }
+        .type-badge.classification { border-left: 3px solid #f0883e; }
+        .action-item {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .action-name {
+            display: block;
+            font-weight: 500;
+            color: #3fb950;
+            margin-bottom: 0.25rem;
+        }
+        .action-cmd {
+            display: block;
+            font-size: 0.7rem;
+            color: #8b949e;
+            word-break: break-all;
+        }
+        .action-alt {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed #30363d;
+        }
+        .action-alt-label {
+            display: block;
+            font-size: 0.65rem;
+            color: #58a6ff;
+            margin-bottom: 0.25rem;
+        }
+        #node-details { display: none; }
+        #node-details.active { display: block; }
+        #edge-details { display: none; }
+        #edge-details.active { display: block; }
+        .legend { font-size: 0.75rem; }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        .help {
+            font-size: 0.75rem;
+            color: #8b949e;
+            line-height: 1.6;
+        }
+        /* API Reference styles */
+        .view { display: none; }
+        .view.active { display: block; }
+        .endpoint {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            cursor: pointer;
+            gap: 0.5rem;
+        }
+        .endpoint-header:hover { background: #21262d; }
+        .endpoint-method {
+            font-size: 0.625rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+        .endpoint-method.get { background: #238636; color: white; }
+        .endpoint-method.query { background: #1f6feb; color: white; }
+        .endpoint-path {
+            font-family: monospace;
+            font-size: 0.875rem;
+            flex: 1;
+        }
+        .endpoint-body {
+            display: none;
+            padding: 0.75rem;
+            border-top: 1px solid #30363d;
+            background: #0d1117;
+        }
+        .endpoint.expanded .endpoint-body { display: block; }
+        .endpoint-desc {
+            font-size: 0.75rem;
+            color: #8b949e;
+            margin-bottom: 0.75rem;
+        }
+        .code-block {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .code-label {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            color: #8b949e;
+            margin-bottom: 0.25rem;
+        }
+        /* API Explorer Interactive Styles */
+        .api-controls {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-end;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .api-control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .api-control-label {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            color: #8b949e;
+        }
+        .api-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            min-width: 180px;
+            cursor: pointer;
+        }
+        .api-select:hover { background: #30363d; }
+        .api-select:focus {
+            outline: 2px solid #58a6ff;
+            outline-offset: 1px;
+        }
+        .api-btn {
+            background: #238636;
+            border: 1px solid #238636;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .api-btn:hover { background: #2ea043; }
+        .api-btn:focus {
+            outline: 2px solid #58a6ff;
+            outline-offset: 1px;
+        }
+        .api-btn.secondary {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+        }
+        .api-btn.secondary:hover { background: #30363d; }
+        .api-result {
+            margin-top: 0.75rem;
+        }
+        .api-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        .api-result-count {
+            font-size: 0.7rem;
+            color: #8b949e;
+        }
+        .api-result-code {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .api-result-code.empty {
+            color: #8b949e;
+            font-style: italic;
+        }
+        .api-cue-expr {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 0.5rem 0.75rem;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #8b949e;
+            margin-bottom: 0.75rem;
+        }
+        .api-cue-expr code {
+            color: #79c0ff;
+        }
+        .api-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .highlight-badge {
+            display: inline-block;
+            background: #f8514933;
+            color: #f85149;
+            font-size: 0.625rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            margin-left: 0.5rem;
+        }
+        /* Node highlight styles in graph */
+        .node-highlighted {
+            border-width: 4px !important;
+            border-color: #58a6ff !important;
+        }
+        /* Edge list */
+        .edge-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #21262d;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .edge-item:hover { background: #21262d; }
+        .edge-item.selected { background: #1f6feb33; }
+        .edge-arrow {
+            color: #58a6ff;
+            margin: 0 0.5rem;
+        }
+        .edge-type {
+            margin-left: auto;
+            font-size: 0.625rem;
+            padding: 0.125rem 0.375rem;
+            background: #30363d;
+            border-radius: 3px;
+        }
+        /* Criticality scale (used in graph legend) */
+        .crit-scale {
+            padding: 0.5rem 0;
+        }
+        .crit-scale-bar {
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(to right, #58a6ff, #f0883e, #f85149);
+        }
+        .crit-scale-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.625rem;
+            color: #8b949e;
+            margin-top: 0.25rem;
+        }
+        /* Composition view */
+        .composition-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .layer-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .layer-toggle button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .layer-toggle button:hover { background: #30363d; }
+        .layer-toggle button.active {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        .layer-toggle button:focus-visible {
+            outline: 2px solid #58a6ff;
+            outline-offset: 2px;
+        }
+        .layer-toggle button.layer-interface { border-left: 3px solid #a371f7; }
+        .layer-toggle button.layer-provider { border-left: 3px solid #58a6ff; }
+        .layer-toggle button.layer-instance { border-left: 3px solid #3fb950; }
+        .dual-pane {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .pane {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .pane-header {
+            background: #21262d;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+        }
+        .pane-content {
+            padding: 0.75rem;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.75rem;
+            white-space: pre;
+            overflow-x: auto;
+            min-height: 200px;
+        }
+        .layer-badge {
+            display: inline-block;
+            font-size: 0.625rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            margin-bottom: 0.5rem;
+        }
+        .layer-badge.interface { background: #a371f733; color: #a371f7; }
+        .layer-badge.provider { background: #58a6ff33; color: #58a6ff; }
+        .layer-badge.instance { background: #3fb95033; color: #3fb950; }
+        .layer-badge.unified { background: #f0883e33; color: #f0883e; }
+        .syntax-keyword { color: #ff7b72; }
+        .syntax-string { color: #a5d6ff; }
+        .syntax-param { color: #ffa657; }
+        .syntax-comment { color: #8b949e; }
+        .syntax-field { color: #79c0ff; }
+        /* Timeline view */
+        .timeline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .timeline-layer {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+        }
+        .timeline-depth {
+            width: 60px;
+            font-size: 0.75rem;
+            color: #8b949e;
+            text-transform: uppercase;
+        }
+        .timeline-nodes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            flex: 1;
+        }
+        .timeline-node {
+            padding: 0.375rem 0.75rem;
+            background: #21262d;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .timeline-node:hover { border-color: #58a6ff; }
+        /* Type matrix view */
+        .type-matrix {
+            display: grid;
+            gap: 0.5rem;
+        }
+        .type-group {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .type-header {
+            padding: 0.5rem 0.75rem;
+            background: #21262d;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .type-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .type-count {
+            margin-left: auto;
+            font-size: 0.7rem;
+            color: #8b949e;
+        }
+        .type-resources {
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .type-resource {
+            padding: 0.25rem 0.5rem;
+            background: #21262d;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .type-resource:hover { background: #30363d; }
+        /* Analysis view */
+        .analysis-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .analysis-header {
+            padding: 0.75rem;
+            background: #21262d;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+        .analysis-header:hover { background: #30363d; }
+        .analysis-icon { font-size: 1rem; }
+        .analysis-title { flex: 1; }
+        .analysis-badge {
+            font-size: 0.7rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 10px;
+            background: #30363d;
+        }
+        .analysis-badge.critical { background: #f8514933; color: #f85149; }
+        .analysis-badge.warning { background: #f0883e33; color: #f0883e; }
+        .analysis-badge.ok { background: #3fb95033; color: #3fb950; }
+        .analysis-body {
+            padding: 0.75rem;
+            display: none;
+        }
+        .analysis-section.expanded .analysis-body { display: block; }
+        .analysis-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .analysis-item:hover { background: #21262d; }
+        .analysis-item-name { font-family: monospace; flex: 1; }
+        .analysis-item-value { color: #8b949e; font-size: 0.75rem; }
+        .cascade-wave {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-left: 3px solid #30363d;
+            margin-bottom: 0.5rem;
+        }
+        .cascade-wave.wave-0 { border-color: #f85149; }
+        .cascade-wave.wave-1 { border-color: #f0883e; }
+        .cascade-wave.wave-2 { border-color: #d29922; }
+        .cascade-wave.wave-3 { border-color: #8b949e; }
+        .wave-label { font-size: 0.7rem; color: #8b949e; width: 50px; }
+        .wave-nodes { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+        .wave-node {
+            padding: 0.125rem 0.375rem;
+            background: #21262d;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .wave-node:hover { background: #30363d; }
+        /* Composition selectors */
+        .comp-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .comp-select:hover { background: #30363d; }
+        .comp-label {
+            font-size: 0.75rem;
+            color: #8b949e;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="https://github.com/quicue/quicue">quicue</a> <span>/ graph explorer</span></h1>
+        <select id="example-select">
+            <option value="multi-region">multi-region - 22 nodes, 6 layers</option>
+            <option value="operational">operational - web stack (8 nodes)</option>
+            <option value="graph-patterns">graph-patterns - topology & queries</option>
+            <option value="type-composition">type-composition - actions from types</option>
+            <option value="provider-demo">provider-demo - Proxmox vs Docker</option>
+            <option value="3-layer">3-layer - CUE unification</option>
+            <option value="jsonld-export">jsonld-export - RDF export</option>
+        </select>
+        <nav>
+            <button class="active" data-view="graph">Graph</button>
+            <button data-view="api">Patterns</button>
+            <button data-view="composition">Composition</button>
+            <button data-view="timeline">Timeline</button>
+            <button data-view="types">Types</button>
+            <button data-view="analysis">Analysis</button>
+        </nav>
+        <div class="links">
+            <a href="explore.html">D3 Explorer</a>
+            <a href="https://github.com/quicue/quicue">GitHub</a>
+            <a href="https://github.com/quicue/quicue#readme">Docs</a>
+        </div>
+    </header>
+    <div id="metrics-bar" style="background: #161b22; padding: 0.5rem 2rem; border-bottom: 1px solid #30363d; font-size: 0.8rem; display: flex; gap: 2rem;">
+        <span><strong id="metric-total">-</strong> resources</span>
+        <span>depth <strong id="metric-depth">-</strong></span>
+        <span><strong id="metric-edges">-</strong> edges</span>
+        <span><strong id="metric-roots">-</strong> roots</span>
+        <span><strong id="metric-leaves">-</strong> leaves</span>
+        <span style="margin-left: auto;">
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="impact-mode" style="margin-right: 0.5rem;">
+                Impact mode
+            </label>
+        </span>
+    </div>
+    <div id="insight-bar" style="background: #21262d; padding: 0.75rem 2rem; border-bottom: 1px solid #30363d; font-size: 0.85rem;">
+        <span style="color: #f0883e; margin-right: 0.5rem;">Try this:</span>
+        <span id="insight-text" style="color: #c9d1d9;">-</span>
+    </div>
+    <main>
+        <div id="cy"></div>
+        <aside>
+            <!-- Graph View -->
+            <div class="view active" id="view-graph">
+                <div class="panel" id="node-details">
+                    <h2>Selected Node</h2>
+                    <div class="info-row">
+                        <span class="info-label">Name</span>
+                        <span class="info-value" id="detail-name">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Depth</span>
+                        <span class="info-value" id="detail-depth">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Dependents</span>
+                        <span class="info-value" id="detail-dependents">-</span>
+                    </div>
+                    <div style="margin-top: 0.75rem;">
+                        <span class="info-label">Types</span>
+                        <div id="detail-types" style="margin-top: 0.5rem;"></div>
+                    </div>
+                    <div id="detail-actions-section" style="margin-top: 0.75rem; display: none;">
+                        <span class="info-label">Actions</span>
+                        <div id="detail-actions" style="margin-top: 0.5rem;"></div>
+                    </div>
+                </div>
+                <div class="panel" id="edge-details">
+                    <h2>Selected Edge</h2>
+                    <div class="info-row">
+                        <span class="info-label">From</span>
+                        <span class="info-value" id="edge-source">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">To</span>
+                        <span class="info-value" id="edge-target">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Relation</span>
+                        <span class="info-value">depends_on</span>
+                    </div>
+                    <div style="margin-top: 0.75rem;">
+                        <span class="info-label">JSON-LD IRI</span>
+                        <div style="margin-top: 0.5rem; font-family: monospace; font-size: 0.7rem; word-break: break-all;">
+                            <span id="edge-iri">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <h2>Node Colors (Criticality)</h2>
+                    <div class="crit-scale">
+                        <div class="crit-scale-bar"></div>
+                        <div class="crit-scale-labels">
+                            <span>0 dependents</span>
+                            <span>max dependents</span>
+                        </div>
+                    </div>
+                    <div class="help" style="margin-top: 0.75rem;">
+                        More critical resources (more dependents) appear redder.
+                        Enable <strong>Impact mode</strong> to see what fails if a resource goes down.
+                    </div>
+                </div>
+                <div class="panel">
+                    <h2>Controls</h2>
+                    <div class="help">
+                        <p><strong>Click</strong> node/edge to select</p>
+                        <p><strong>Drag</strong> to pan</p>
+                        <p><strong>Scroll</strong> to zoom</p>
+                        <p><strong>Double-click</strong> to fit</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API/Patterns View -->
+            <div class="view" id="view-api">
+                <div class="panel">
+                    <h2>API Explorer</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Interactive query patterns for the infrastructure graph.
+                        Select parameters and click <strong>Run</strong> to see live results.
+                    </div>
+                </div>
+
+                <!-- ImpactQuery -->
+                <div class="endpoint" id="endpoint-impact">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#ImpactQuery</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Find all resources affected if target fails (blast radius analysis).</div>
+                        <div class="api-cue-expr">CUE: <code>impact: #ImpactQuery & {Graph: infra, Target: "<span id="impact-target-expr">-</span>"}</code></div>
+                        <div class="api-controls">
+                            <div class="api-control-group">
+                                <span class="api-control-label">Target Node</span>
+                                <select class="api-select" id="impact-target"></select>
+                            </div>
+                            <button class="api-btn" onclick="runImpactQuery()">Run</button>
+                            <button class="api-btn secondary" id="impact-show-graph" onclick="showInGraph('impact')" style="display: none;">Show in Graph</button>
+                        </div>
+                        <div class="api-result" id="impact-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: affected</span>
+                                <span class="api-result-count" id="impact-count"></span>
+                            </div>
+                            <div class="api-result-code" id="impact-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DependencyChain -->
+                <div class="endpoint" id="endpoint-chain">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#DependencyChain</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Get the dependency path from target up to root(s).</div>
+                        <div class="api-cue-expr">CUE: <code>chain: #DependencyChain & {Graph: infra, Target: "<span id="chain-target-expr">-</span>"}</code></div>
+                        <div class="api-controls">
+                            <div class="api-control-group">
+                                <span class="api-control-label">Target Node</span>
+                                <select class="api-select" id="chain-target"></select>
+                            </div>
+                            <button class="api-btn" onclick="runDependencyChain()">Run</button>
+                            <button class="api-btn secondary" id="chain-show-graph" onclick="showInGraph('chain')" style="display: none;">Show in Graph</button>
+                        </div>
+                        <div class="api-result" id="chain-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: path</span>
+                                <span class="api-result-count" id="chain-count"></span>
+                            </div>
+                            <div class="api-result-code" id="chain-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ImmediateDependents -->
+                <div class="endpoint" id="endpoint-immediate">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#ImmediateDependents</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Direct dependents only (not transitive). Nodes that directly depend on target.</div>
+                        <div class="api-cue-expr">CUE: <code>deps: #ImmediateDependents & {Graph: infra, Target: "<span id="immediate-target-expr">-</span>"}</code></div>
+                        <div class="api-controls">
+                            <div class="api-control-group">
+                                <span class="api-control-label">Target Node</span>
+                                <select class="api-select" id="immediate-target"></select>
+                            </div>
+                            <button class="api-btn" onclick="runImmediateDependents()">Run</button>
+                            <button class="api-btn secondary" id="immediate-show-graph" onclick="showInGraph('immediate')" style="display: none;">Show in Graph</button>
+                        </div>
+                        <div class="api-result" id="immediate-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: dependents</span>
+                                <span class="api-result-count" id="immediate-count"></span>
+                            </div>
+                            <div class="api-result-code" id="immediate-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CriticalityRank -->
+                <div class="endpoint" id="endpoint-criticality">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#CriticalityRank</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Rank resources by dependent count (most critical first).</div>
+                        <div class="api-cue-expr">CUE: <code>crit: #CriticalityRank & {Graph: infra}</code></div>
+                        <div class="api-controls">
+                            <button class="api-btn" onclick="runCriticalityRank()">Run</button>
+                            <button class="api-btn secondary" id="criticality-show-graph" onclick="showInGraph('criticality')" style="display: none;">Show in Graph</button>
+                        </div>
+                        <div class="api-result" id="criticality-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: ranked</span>
+                                <span class="api-result-count" id="criticality-count"></span>
+                            </div>
+                            <div class="api-result-code" id="criticality-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GroupByType -->
+                <div class="endpoint" id="endpoint-bytype">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#GroupByType</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Group resources by their @type array.</div>
+                        <div class="api-cue-expr">CUE: <code>byType: #GroupByType & {Graph: infra}</code></div>
+                        <div class="api-controls">
+                            <button class="api-btn" onclick="runGroupByType()">Run</button>
+                        </div>
+                        <div class="api-result" id="bytype-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: groups</span>
+                                <span class="api-result-count" id="bytype-count"></span>
+                            </div>
+                            <div class="api-result-code" id="bytype-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Topology -->
+                <div class="endpoint" id="endpoint-topology">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#InfraGraph.topology</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Layer ordering by dependency depth. Layer 0 = roots.</div>
+                        <div class="api-cue-expr">CUE: <code>infra.topology</code></div>
+                        <div class="api-controls">
+                            <button class="api-btn" onclick="runTopology()">Run</button>
+                        </div>
+                        <div class="api-result" id="topology-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: topology</span>
+                                <span class="api-result-count" id="topology-count"></span>
+                            </div>
+                            <div class="api-result-code" id="topology-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ValidateGraph -->
+                <div class="endpoint" id="endpoint-validate">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method get">GET</span>
+                        <span class="endpoint-path">#ValidateGraph</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Check for missing deps, self-refs, cycles, empty types.</div>
+                        <div class="api-cue-expr">CUE: <code>validate: #ValidateGraph & {Input: resources}</code></div>
+                        <div class="api-controls">
+                            <button class="api-btn" onclick="runValidateGraph()">Run</button>
+                        </div>
+                        <div class="api-result" id="validate-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result</span>
+                                <span class="api-result-count" id="validate-count"></span>
+                            </div>
+                            <div class="api-result-code" id="validate-output"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Composition View -->
+            <div class="view" id="view-composition">
+                <div class="panel">
+                    <h2>CUE Unification: Interface → Provider → Instance</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Toggle layers to see how abstract constraints become concrete commands.
+                        Switch providers to see same resource, different commands.
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div class="layer-toggle">
+                            <button class="layer-interface active" data-layer="interface">Interface</button>
+                            <button class="layer-provider active" data-layer="provider">Provider</button>
+                            <button class="layer-instance active" data-layer="instance">Instance</button>
+                        </div>
+                        <div style="margin-left: auto; display: flex; gap: 1rem;">
+                            <div>
+                                <label class="comp-label">Provider</label>
+                                <select id="comp-provider" class="comp-select">
+                                    <option value="proxmox">Proxmox LXC</option>
+                                    <option value="docker">Docker</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="comp-label">Action</label>
+                                <select id="comp-action" class="comp-select">
+                                    <option value="console">console</option>
+                                    <option value="status">status</option>
+                                    <option value="logs">logs</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2 id="comp-title">dns-server.actions.console</h2>
+                    <div class="dual-pane">
+                        <div class="pane">
+                            <div class="pane-header">CUE Expression</div>
+                            <div class="pane-content" id="expr-pane"></div>
+                        </div>
+                        <div class="pane">
+                            <div class="pane-header">Evaluates To</div>
+                            <div class="pane-content" id="eval-pane"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem;">
+                    <div style="display: flex; gap: 2rem; font-size: 0.8rem;">
+                        <div style="flex: 1;">
+                            <div style="color: #a371f7; font-weight: 600; margin-bottom: 0.25rem;">Interface</div>
+                            <div style="color: #8b949e;">Schema: what fields must exist</div>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="color: #58a6ff; font-weight: 600; margin-bottom: 0.25rem;">Provider</div>
+                            <div style="color: #8b949e;">Template with UPPERCASE params</div>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="color: #3fb950; font-weight: 600; margin-bottom: 0.25rem;">Instance</div>
+                            <div style="color: #8b949e;">Binds concrete values to params</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="code-block" style="font-size: 0.8rem;">./quicue eval 3-layer</div>
+                </div>
+            </div>
+
+            <!-- Timeline View -->
+            <div class="view" id="view-timeline">
+                <div class="panel">
+                    <h2>Dependency Layers (Timeline)</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Resources organized by depth. Layer 0 = roots (no dependencies).
+                        Startup order: top to bottom. Shutdown order: bottom to top.
+                    </div>
+                    <div class="timeline-container" id="timeline-layers"></div>
+                </div>
+                <div class="panel">
+                    <h2>Startup Sequence</h2>
+                    <div class="help">
+                        <p>Resources at each layer can start in parallel once all resources in the previous layer are ready.</p>
+                        <p style="margin-top: 0.5rem;">Click a node to see its impact in the graph view.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Types View -->
+            <div class="view" id="view-types">
+                <div class="panel">
+                    <h2>Resources by Type</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Resources grouped by their <code>@type</code> array. Resources can have multiple types.
+                    </div>
+                    <div class="type-matrix" id="type-matrix"></div>
+                </div>
+                <div class="panel">
+                    <h2>Type Categories</h2>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #58a6ff;"></span>
+                            <span>Semantic (DNSServer, Database)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #a371f7;"></span>
+                            <span>Implementation (LXCContainer, VM)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #f0883e;"></span>
+                            <span>Classification (CriticalInfra)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis View -->
+            <div class="view" id="view-analysis">
+                <div class="panel">
+                    <h2>Graph Analysis</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Live analysis of the current graph. Click items to highlight in graph view.
+                    </div>
+                </div>
+
+                <div class="analysis-section expanded" id="analysis-bottleneck">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">Bottlenecks (Fan-In)</span>
+                        <span class="analysis-badge" id="bottleneck-badge">-</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div class="help" style="margin-bottom: 0.5rem;">Resources with 3+ dependents are critical bottlenecks.</div>
+                        <div id="bottleneck-list"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-section" id="analysis-cascade">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">Cascade Simulation</span>
+                        <span class="analysis-badge" id="cascade-badge">select node</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div class="help" style="margin-bottom: 0.5rem;">
+                            Select a resource to simulate failure cascade:
+                        </div>
+                        <select id="cascade-select" class="comp-select" style="width: 100%; margin-bottom: 0.75rem;">
+                        </select>
+                        <div id="cascade-result"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-section" id="analysis-validation">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">Validation</span>
+                        <span class="analysis-badge" id="validation-badge">-</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div id="validation-result"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+    // Load graph data from JSON file
+    let graphData = null;
+    let cy = null;
+    let domHandlersInitialized = false;
+    const BASE_IRI = 'https://infra.example.com/resources/';
+
+    // Type categories for badge styling
+    const typeCategories = {
+        // Semantic types (what it IS)
+        DNSServer: 'semantic', ReverseProxy: 'semantic', SourceControlManagement: 'semantic',
+        MonitoringServer: 'semantic', VirtualizationPlatform: 'semantic', Database: 'semantic',
+        APIServer: 'semantic', WebFrontend: 'semantic', CacheCluster: 'semantic',
+        MessageQueue: 'semantic', Worker: 'semantic', ScheduledJob: 'semantic',
+        LoadBalancer: 'semantic', AuthServer: 'semantic', SearchIndex: 'semantic',
+        LogAggregator: 'semantic', Region: 'semantic', AvailabilityZone: 'semantic',
+        Hypervisor: 'semantic',
+        // Implementation types (how it RUNS)
+        LXCContainer: 'implementation', VirtualMachine: 'implementation', DockerContainer: 'implementation',
+        Container: 'implementation',
+        // Classification types (operational category)
+        CriticalInfra: 'classification'
+    };
+
+    // Criticality color: blue (0 deps) → orange (mid) → red (max deps)
+    function criticalityColor(dependents, maxDependents) {
+        if (maxDependents === 0) return '#58a6ff';
+        const ratio = dependents / maxDependents;
+        if (ratio < 0.5) {
+            // Blue to orange
+            const r = Math.round(88 + (240 - 88) * (ratio * 2));
+            const g = Math.round(166 + (136 - 166) * (ratio * 2));
+            const b = Math.round(255 + (62 - 255) * (ratio * 2));
+            return `rgb(${r},${g},${b})`;
+        } else {
+            // Orange to red
+            const r = Math.round(240 + (248 - 240) * ((ratio - 0.5) * 2));
+            const g = Math.round(136 - 136 * ((ratio - 0.5) * 2));
+            const b = Math.round(62 - 62 * ((ratio - 0.5) * 2));
+            return `rgb(${r},${g},${b})`;
+        }
+    }
+
+    // Node color based on criticality (dependent count)
+    function nodeColor(node) {
+        const data = node.data();
+        const maxDeps = graphData ? Math.max(...graphData.nodes.map(n => n.dependents)) : 0;
+        return criticalityColor(data.dependents, maxDeps);
+    }
+
+    // Example insights - what to notice in each example
+    const exampleInsights = {
+        'graph-patterns': 'Check <strong>Impact mode</strong>, click <strong>dns-primary</strong> - 3 services turn red. Click <strong>Timeline</strong> for startup order.',
+        'operational': 'Classic web stack: web→api→db/cache→dns. Check <strong>Analysis</strong> - db and cache are bottlenecks (3 dependents each).',
+        'multi-region': 'Try <strong>Patterns</strong> tab - run ImpactQuery on dns-us (16 affected), or DependencyChain on web-eu (10 ancestors). Click "Show in Graph" to visualize.',
+        'type-composition': 'Click <strong>multi-role</strong> - 2 types = 3 actions. Compare to <strong>caddy</strong> (1 type = 2 actions).',
+        'provider-demo': 'Click <strong>dns</strong> - see Proxmox commands with Docker alternative below. Same resource, different backend.',
+        '3-layer': 'Click <strong>Composition</strong> - see how Interface + Provider + Instance merge into one concrete command.',
+        'jsonld-export': 'Click any <strong>edge</strong> in the graph - see JSON-LD IRI resolution. Export to RDF-compatible tools.'
+    };
+
+    // Initialize visualization with loaded data
+    async function init(exampleName = 'multi-region') {
+        try {
+            const response = await fetch(`data/${exampleName}.json`);
+            graphData = await response.json();
+        } catch (e) {
+            // Fallback to embedded data if fetch fails
+            graphData = {
+                nodes: [
+                    { id: 'pve-node', types: ['VirtualizationPlatform'], depth: 0, dependents: 4, ancestors: [] },
+                    { id: 'dns-primary', types: ['DNSServer', 'CriticalInfra'], depth: 1, dependents: 3, ancestors: ['pve-node'] },
+                    { id: 'reverse-proxy', types: ['ReverseProxy'], depth: 2, dependents: 1, ancestors: ['dns-primary', 'pve-node'] },
+                    { id: 'git-server', types: ['SourceControlManagement'], depth: 3, dependents: 0, ancestors: ['dns-primary', 'reverse-proxy', 'pve-node'] },
+                    { id: 'monitoring', types: ['MonitoringServer'], depth: 2, dependents: 0, ancestors: ['dns-primary', 'pve-node'] }
+                ],
+                edges: [
+                    { source: 'pve-node', target: 'dns-primary' },
+                    { source: 'dns-primary', target: 'reverse-proxy' },
+                    { source: 'dns-primary', target: 'git-server' },
+                    { source: 'dns-primary', target: 'monitoring' },
+                    { source: 'reverse-proxy', target: 'git-server' }
+                ],
+                metrics: { total: 5, maxDepth: 3, edges: 5, roots: 1, leaves: 2 },
+                criticality: [
+                    { name: 'pve-node', dependents: 4 },
+                    { name: 'dns-primary', dependents: 3 },
+                    { name: 'reverse-proxy', dependents: 1 },
+                    { name: 'git-server', dependents: 0 },
+                    { name: 'monitoring', dependents: 0 }
+                ],
+                roots: ['pve-node'],
+                leaves: ['git-server', 'monitoring'],
+                validation: { valid: true, issues: [] }
+            };
+        }
+
+        // Update metrics bar
+        const m = graphData.metrics;
+        document.getElementById('metric-total').textContent = m.total;
+        document.getElementById('metric-depth').textContent = m.maxDepth;
+        document.getElementById('metric-edges').textContent = m.edges;
+        document.getElementById('metric-roots').textContent = m.roots;
+        document.getElementById('metric-leaves').textContent = m.leaves;
+
+        // Update insight bar
+        const insightText = exampleInsights[exampleName] || '';
+        document.getElementById('insight-text').innerHTML = insightText;
+
+        // Find roots for layout
+        const rootIds = graphData.roots || graphData.nodes.filter(n => n.depth === 0).map(n => n.id);
+
+        // Destroy old instance if exists
+        if (cy) {
+            cy.destroy();
+        }
+
+        // Initialize Cytoscape
+        cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [
+                ...graphData.nodes.map(n => ({
+                    data: { id: n.id, ...n },
+                    classes: n.depth === 0 ? 'root' : (n.dependents === 0 ? 'leaf' : '')
+                })),
+                ...graphData.edges.map(e => ({
+                    data: { id: `${e.source}-${e.target}`, source: e.source, target: e.target }
+                }))
+            ],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'label': 'data(id)',
+                        'text-valign': 'bottom',
+                        'text-margin-y': 8,
+                        'font-size': 12,
+                        'font-family': '-apple-system, BlinkMacSystemFont, sans-serif',
+                        'color': '#c9d1d9',
+                        'background-color': nodeColor,
+                        'width': 40,
+                        'height': 40,
+                        'border-width': 2,
+                        'border-color': '#30363d'
+                    }
+                },
+                {
+                    selector: 'node:selected',
+                    style: {
+                        'border-width': 3,
+                        'border-color': '#ffffff'
+                    }
+                },
+                {
+                    selector: 'node.dimmed',
+                    style: {
+                        'opacity': 0.25
+                    }
+                },
+                {
+                    selector: 'node.impact-highlight',
+                    style: {
+                        'border-width': 3,
+                        'border-color': '#f85149'
+                    }
+                },
+                {
+                    selector: 'node.impact-source',
+                    style: {
+                        'border-width': 4,
+                        'border-color': '#f85149',
+                        'background-color': '#f85149'
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'line-color': '#30363d',
+                        'target-arrow-color': '#30363d',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'arrow-scale': 1
+                    }
+                },
+                {
+                    selector: 'edge:selected',
+                    style: {
+                        'line-color': '#58a6ff',
+                        'target-arrow-color': '#58a6ff'
+                    }
+                },
+                {
+                    selector: 'edge.dimmed',
+                    style: {
+                        'opacity': 0.15
+                    }
+                },
+                {
+                    selector: 'edge.impact-highlight',
+                    style: {
+                        'line-color': '#f85149',
+                        'target-arrow-color': '#f85149',
+                        'width': 3
+                    }
+                }
+            ],
+            layout: {
+                name: 'breadthfirst',
+                directed: true,
+                roots: rootIds.map(id => `#${id}`).join(', '),
+                spacingFactor: 1.5,
+                padding: 50
+            }
+        });
+
+        // Wire up event handlers
+        setupEventHandlers();
+        populateTimelineView();
+        populateTypesView();
+        populateAnalysisView();
+        populateApiExplorer();
+    }
+
+    function setupEventHandlers() {
+        // DOM handlers - only add once
+        if (!domHandlersInitialized) {
+            // View switching
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+                    // Toggle full-width for composition view
+                    const main = document.querySelector('main');
+                    if (btn.dataset.view === 'composition') {
+                        main.classList.add('composition-active');
+                        document.body.classList.add('composition-active');
+                    } else {
+                        main.classList.remove('composition-active');
+                        document.body.classList.remove('composition-active');
+                    }
+                });
+            });
+
+            // Impact mode toggle
+            document.getElementById('impact-mode').addEventListener('change', (e) => {
+                if (!e.target.checked) {
+                    clearImpactHighlight();
+                }
+            });
+
+            domHandlersInitialized = true;
+        }
+
+        // Cytoscape handlers - re-add each init since cy is recreated
+        // Node selection handler
+        cy.on('tap', 'node', function(evt) {
+            const node = evt.target;
+            const data = node.data();
+
+            // Handle impact mode
+            if (document.getElementById('impact-mode').checked) {
+                showImpact(data.id);
+            }
+
+            // Show node details
+            document.getElementById('edge-details').classList.remove('active');
+            document.getElementById('detail-name').textContent = data.id;
+            document.getElementById('detail-depth').textContent = data.depth;
+            document.getElementById('detail-dependents').textContent = data.dependents;
+
+            const typesEl = document.getElementById('detail-types');
+            typesEl.innerHTML = data.types.map(t =>
+                `<span class="type-badge ${typeCategories[t] || ''}">${t}</span>`
+            ).join('');
+
+            // Show actions if available
+            const actionsSection = document.getElementById('detail-actions-section');
+            const actionsEl = document.getElementById('detail-actions');
+            if (data.actions && data.actions.length > 0) {
+                actionsEl.innerHTML = data.actions.map(a => {
+                    const cmd = data.commands && data.commands[a] ? data.commands[a] : '';
+                    const dockerCmd = data.docker_commands && data.docker_commands[a] ? data.docker_commands[a] : '';
+                    return `<div class="action-item">
+                        <span class="action-name">${a}</span>
+                        ${cmd ? `<code class="action-cmd">${cmd}</code>` : ''}
+                        ${dockerCmd ? `<div class="action-alt"><span class="action-alt-label">Docker:</span><code class="action-cmd">${dockerCmd}</code></div>` : ''}
+                    </div>`;
+                }).join('');
+                actionsSection.style.display = 'block';
+            } else {
+                actionsSection.style.display = 'none';
+            }
+
+            document.getElementById('node-details').classList.add('active');
+        });
+
+        // Edge selection handler
+        cy.on('tap', 'edge', function(evt) {
+            const edge = evt.target;
+            const source = edge.source().id();
+            const target = edge.target().id();
+            showEdgeDetails(source, target);
+        });
+
+        // Background click clears selection
+        cy.on('tap', function(evt) {
+            if (evt.target === cy) {
+                document.getElementById('node-details').classList.remove('active');
+                document.getElementById('edge-details').classList.remove('active');
+                if (document.getElementById('impact-mode').checked) {
+                    clearImpactHighlight();
+                }
+            }
+        });
+
+        // Double-click to fit
+        cy.on('dbltap', function() {
+            cy.fit(50);
+        });
+    }
+
+    function populateTimelineView() {
+        const container = document.getElementById('timeline-layers');
+        if (!container || !graphData.topology) return;
+        container.innerHTML = '';
+
+        const maxDeps = Math.max(...graphData.nodes.map(n => n.dependents));
+
+        // Sort layers by depth
+        const layers = Object.keys(graphData.topology).sort((a, b) => {
+            const depthA = parseInt(a.replace('layer_', ''));
+            const depthB = parseInt(b.replace('layer_', ''));
+            return depthA - depthB;
+        });
+
+        layers.forEach(layerKey => {
+            const depth = parseInt(layerKey.replace('layer_', ''));
+            const nodes = graphData.topology[layerKey];
+            if (!nodes || nodes.length === 0) return;
+
+            const div = document.createElement('div');
+            div.className = 'timeline-layer';
+            div.innerHTML = `
+                <span class="timeline-depth">Layer ${depth}</span>
+                <div class="timeline-nodes">
+                    ${nodes.map(nodeId => {
+                        const node = graphData.nodes.find(n => n.id === nodeId);
+                        const color = criticalityColor(node ? node.dependents : 0, maxDeps);
+                        return `<span class="timeline-node" data-id="${nodeId}" style="border-left: 3px solid ${color};">${nodeId}</span>`;
+                    }).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        // Add click handlers
+        container.querySelectorAll('.timeline-node').forEach(node => {
+            node.addEventListener('click', () => {
+                const nodeId = node.dataset.id;
+                // Switch to graph view and select node
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.querySelector('nav button[data-view="graph"]').classList.add('active');
+                document.getElementById('view-graph').classList.add('active');
+                document.querySelector('main').classList.remove('composition-active');
+                document.body.classList.remove('composition-active');
+                cy.nodes().unselect();
+                cy.getElementById(nodeId).select();
+                if (document.getElementById('impact-mode').checked) {
+                    showImpact(nodeId);
+                }
+            });
+        });
+    }
+
+    function populateTypesView() {
+        const container = document.getElementById('type-matrix');
+        if (!container || !graphData.byType) return;
+        container.innerHTML = '';
+
+        const typeColors = {
+            'semantic': '#58a6ff',
+            'implementation': '#a371f7',
+            'classification': '#f0883e'
+        };
+
+        // Sort types by resource count
+        const types = Object.keys(graphData.byType).sort((a, b) => {
+            return graphData.byType[b].length - graphData.byType[a].length;
+        });
+
+        types.forEach(typeName => {
+            const resources = graphData.byType[typeName];
+            if (!resources || resources.length === 0) return;
+
+            const category = typeCategories[typeName] || 'semantic';
+            const color = typeColors[category];
+
+            const div = document.createElement('div');
+            div.className = 'type-group';
+            div.innerHTML = `
+                <div class="type-header">
+                    <span class="type-color" style="background: ${color};"></span>
+                    <span>${typeName}</span>
+                    <span class="type-count">${resources.length} resource${resources.length > 1 ? 's' : ''}</span>
+                </div>
+                <div class="type-resources">
+                    ${resources.map(r => `<span class="type-resource" data-id="${r}">${r}</span>`).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        // Add click handlers
+        container.querySelectorAll('.type-resource').forEach(node => {
+            node.addEventListener('click', () => {
+                const nodeId = node.dataset.id;
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.querySelector('nav button[data-view="graph"]').classList.add('active');
+                document.getElementById('view-graph').classList.add('active');
+                document.querySelector('main').classList.remove('composition-active');
+                document.body.classList.remove('composition-active');
+                cy.nodes().unselect();
+                cy.getElementById(nodeId).select();
+            });
+        });
+    }
+
+    function populateAnalysisView() {
+        if (!graphData) return;
+
+        // Bottleneck analysis (fan-in)
+        const fanIn = {};
+        graphData.nodes.forEach(n => { fanIn[n.id] = n.dependents || 0; });
+
+        const critical = Object.entries(fanIn).filter(([_, v]) => v >= 3).sort((a, b) => b[1] - a[1]);
+        const important = Object.entries(fanIn).filter(([_, v]) => v >= 1 && v < 3).sort((a, b) => b[1] - a[1]);
+
+        const bottleneckBadge = document.getElementById('bottleneck-badge');
+        const bottleneckList = document.getElementById('bottleneck-list');
+
+        if (critical.length > 0) {
+            bottleneckBadge.textContent = `${critical.length} critical`;
+            bottleneckBadge.className = 'analysis-badge critical';
+        } else if (important.length > 0) {
+            bottleneckBadge.textContent = `${important.length} important`;
+            bottleneckBadge.className = 'analysis-badge warning';
+        } else {
+            bottleneckBadge.textContent = 'none';
+            bottleneckBadge.className = 'analysis-badge ok';
+        }
+
+        bottleneckList.innerHTML = [...critical, ...important].map(([name, deps]) => `
+            <div class="analysis-item" onclick="selectNodeFromAnalysis('${name}')">
+                <span class="analysis-item-name">${name}</span>
+                <span class="analysis-item-value">${deps} dependents</span>
+            </div>
+        `).join('') || '<div class="help">No bottlenecks detected</div>';
+
+        // Cascade selector
+        const cascadeSelect = document.getElementById('cascade-select');
+        cascadeSelect.innerHTML = graphData.nodes
+            .sort((a, b) => b.dependents - a.dependents)
+            .map(n => `<option value="${n.id}">${n.id} (${n.dependents} dependents)</option>`)
+            .join('');
+        cascadeSelect.addEventListener('change', () => runCascadeSimulation(cascadeSelect.value));
+
+        // Run initial cascade
+        if (graphData.nodes.length > 0) {
+            runCascadeSimulation(cascadeSelect.value);
+        }
+
+        // Validation
+        const validationBadge = document.getElementById('validation-badge');
+        const validationResult = document.getElementById('validation-result');
+
+        if (graphData.validation && graphData.validation.valid) {
+            validationBadge.textContent = 'valid';
+            validationBadge.className = 'analysis-badge ok';
+            validationResult.innerHTML = '<div class="help">No issues detected. Graph structure is valid.</div>';
+        } else {
+            const issues = graphData.validation?.issues || [];
+            validationBadge.textContent = `${issues.length} issues`;
+            validationBadge.className = 'analysis-badge critical';
+            validationResult.innerHTML = issues.map(i => `<div class="analysis-item">${JSON.stringify(i)}</div>`).join('');
+        }
+    }
+
+    function runCascadeSimulation(targetId) {
+        if (!graphData) return;
+
+        const cascadeResult = document.getElementById('cascade-result');
+        const cascadeBadge = document.getElementById('cascade-badge');
+
+        // Build adjacency for cascade
+        const dependsOn = {};
+        graphData.nodes.forEach(n => {
+            dependsOn[n.id] = n.ancestors || [];
+        });
+
+        // Compute waves
+        const waves = [[targetId]];
+        const failed = new Set([targetId]);
+
+        for (let i = 0; i < 5; i++) {
+            const nextWave = [];
+            graphData.nodes.forEach(n => {
+                if (failed.has(n.id)) return;
+                const deps = dependsOn[n.id] || [];
+                if (deps.some(d => failed.has(d))) {
+                    nextWave.push(n.id);
+                    failed.add(n.id);
+                }
+            });
+            if (nextWave.length === 0) break;
+            waves.push(nextWave);
+        }
+
+        cascadeBadge.textContent = `${failed.size} affected`;
+        cascadeBadge.className = failed.size > graphData.nodes.length / 2 ? 'analysis-badge critical' : 'analysis-badge warning';
+
+        cascadeResult.innerHTML = waves.map((wave, i) => `
+            <div class="cascade-wave wave-${i}">
+                <span class="wave-label">Wave ${i}</span>
+                <div class="wave-nodes">
+                    ${wave.map(id => `<span class="wave-node" onclick="selectNodeFromAnalysis('${id}')">${id}</span>`).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function selectNodeFromAnalysis(nodeId) {
+        // Switch to graph view
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelector('nav button[data-view="graph"]').classList.add('active');
+        document.getElementById('view-graph').classList.add('active');
+        document.querySelector('main').classList.remove('composition-active');
+        document.body.classList.remove('composition-active');
+
+        // Select node and show impact
+        cy.nodes().unselect();
+        cy.getElementById(nodeId).select();
+        document.getElementById('impact-mode').checked = true;
+        showImpact(nodeId);
+    }
+
+    function showEdgeDetails(source, target) {
+        document.getElementById('node-details').classList.remove('active');
+        document.getElementById('edge-details').classList.add('active');
+        document.getElementById('edge-source').textContent = source;
+        document.getElementById('edge-target').textContent = target;
+        document.getElementById('edge-iri').textContent = `${BASE_IRI}${target} depends_on ${BASE_IRI}${source}`;
+    }
+
+    // Impact highlighting: show all nodes affected if target fails
+    function showImpact(targetId) {
+        clearImpactHighlight();
+
+        // Find all nodes that have targetId in their ancestors
+        const affected = graphData.nodes.filter(n => n.ancestors && n.ancestors.includes(targetId));
+        const affectedIds = affected.map(n => n.id);
+
+        // Dim everything first
+        cy.nodes().addClass('dimmed');
+        cy.edges().addClass('dimmed');
+
+        // Highlight the source node
+        cy.getElementById(targetId).removeClass('dimmed').addClass('impact-source');
+
+        // Highlight affected nodes
+        affectedIds.forEach(id => {
+            cy.getElementById(id).removeClass('dimmed').addClass('impact-highlight');
+        });
+
+        // Highlight edges between affected nodes and source
+        cy.edges().forEach(edge => {
+            const src = edge.source().id();
+            const tgt = edge.target().id();
+            if ((src === targetId && affectedIds.includes(tgt)) ||
+                (affectedIds.includes(src) && affectedIds.includes(tgt))) {
+                edge.removeClass('dimmed').addClass('impact-highlight');
+            }
+        });
+
+        // Update impact panel if exists
+        const impactCount = document.getElementById('impact-count');
+        if (impactCount) {
+            impactCount.textContent = `${affectedIds.length} affected`;
+        }
+    }
+
+    function clearImpactHighlight() {
+        cy.nodes().removeClass('dimmed impact-highlight impact-source');
+        cy.edges().removeClass('dimmed impact-highlight');
+    }
+
+    // Example selector
+    document.getElementById('example-select').addEventListener('change', (e) => {
+        init(e.target.value);
+    });
+
+    // Composition data for dns-server example with multiple providers
+    const compositionData = {
+        resource: {
+            name: 'dns-server',
+            ip: '10.0.1.10',
+            host: 'pve-node-1',
+            container_id: 100,
+            container_name: 'dns-server'
+        },
+        providers: {
+            proxmox: {
+                name: 'ProxmoxLXC',
+                params: ['HOST', 'CONTAINER_ID'],
+                paramTypes: { HOST: 'string', CONTAINER_ID: 'int' },
+                actions: {
+                    console: {
+                        name: 'Console',
+                        description: 'Attach to LXC console',
+                        category: 'connect',
+                        template: "ssh -t \\(HOST) 'pct enter \\(CONTAINER_ID)'",
+                        computed: "ssh -t pve-node-1 'pct enter 100'"
+                    },
+                    status: {
+                        name: 'Container Status',
+                        description: 'Check LXC status via pct',
+                        category: 'monitor',
+                        template: "ssh \\(HOST) 'pct status \\(CONTAINER_ID)'",
+                        computed: "ssh pve-node-1 'pct status 100'"
+                    },
+                    logs: {
+                        name: 'Logs',
+                        description: 'View container journal',
+                        category: 'info',
+                        template: "ssh \\(HOST) 'pct exec \\(CONTAINER_ID) -- journalctl -n 100'",
+                        computed: "ssh pve-node-1 'pct exec 100 -- journalctl -n 100'"
+                    }
+                },
+                instanceExpr: (r) => `<span class="layer-badge instance">INSTANCE</span>
+<span class="syntax-string">"dns-server"</span>: {
+  <span class="syntax-field">host</span>:         <span class="syntax-string">"${r.host}"</span>
+  <span class="syntax-field">container_id</span>: <span class="syntax-keyword">${r.container_id}</span>
+
+  <span class="syntax-field">actions</span>: <span class="syntax-keyword">#ProxmoxLXC</span> & {
+    <span class="syntax-param">HOST</span>:         <span class="syntax-field">host</span>
+    <span class="syntax-param">CONTAINER_ID</span>: <span class="syntax-field">container_id</span>
+  }
+}`
+            },
+            docker: {
+                name: 'Docker',
+                params: ['CONTAINER'],
+                paramTypes: { CONTAINER: 'string' },
+                actions: {
+                    console: {
+                        name: 'Console',
+                        description: 'Attach to container shell',
+                        category: 'connect',
+                        template: 'docker exec -it \\(CONTAINER) /bin/sh',
+                        computed: 'docker exec -it dns-server /bin/sh'
+                    },
+                    status: {
+                        name: 'Container Status',
+                        description: 'Check Docker container status',
+                        category: 'monitor',
+                        template: 'docker inspect --format={{.State.Status}} \\(CONTAINER)',
+                        computed: 'docker inspect --format={{.State.Status}} dns-server'
+                    },
+                    logs: {
+                        name: 'Logs',
+                        description: 'View container logs',
+                        category: 'info',
+                        template: 'docker logs --tail 100 \\(CONTAINER)',
+                        computed: 'docker logs --tail 100 dns-server'
+                    }
+                },
+                instanceExpr: (r) => `<span class="layer-badge instance">INSTANCE</span>
+<span class="syntax-string">"dns-server"</span>: {
+  <span class="syntax-field">container_name</span>: <span class="syntax-string">"${r.container_name}"</span>
+
+  <span class="syntax-field">actions</span>: <span class="syntax-keyword">#Docker</span> & {
+    <span class="syntax-param">CONTAINER</span>: <span class="syntax-field">container_name</span>
+  }
+}`
+            }
+        }
+    };
+
+    function getProviderExpr(providerKey, action) {
+        const provider = compositionData.providers[providerKey];
+        const a = provider.actions[action];
+        const paramLines = provider.params.map(p =>
+            `  <span class="syntax-param">${p}</span>: <span class="syntax-keyword">${provider.paramTypes[p]}</span>`
+        ).join('\n');
+
+        return `<span class="layer-badge provider">PROVIDER</span>
+<span class="syntax-keyword">#${provider.name}</span>: {
+${paramLines}
+
+  <span class="syntax-field">${action}</span>: <span class="syntax-keyword">#Action</span> & {
+    <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+    <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+    <span class="syntax-field">command</span>:     <span class="syntax-string">"${a.template}"</span>
+    <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+  }
+}`;
+    }
+
+    function getInstanceExpr(providerKey) {
+        const provider = compositionData.providers[providerKey];
+        const r = compositionData.resource;
+        return provider.instanceExpr(r);
+    }
+
+    function updateCompositionView() {
+        const providerKey = document.getElementById('comp-provider').value;
+        const action = document.getElementById('comp-action').value;
+        const activeLayers = [];
+        document.querySelectorAll('.layer-toggle button.active').forEach(btn => {
+            activeLayers.push(btn.dataset.layer);
+        });
+
+        const provider = compositionData.providers[providerKey];
+        const a = provider.actions[action];
+
+        // Update title
+        document.getElementById('comp-title').textContent = `dns-server.actions.${action}`;
+
+        const exprPane = document.getElementById('expr-pane');
+        const evalPane = document.getElementById('eval-pane');
+
+        if (activeLayers.length === 0) {
+            exprPane.innerHTML = '<span class="syntax-comment">// Select a layer to see the expression</span>';
+            evalPane.innerHTML = '<span class="syntax-comment">// No layers selected</span>';
+            return;
+        }
+
+        // Build expression from active layers
+        const exprParts = [];
+        if (activeLayers.includes('interface')) {
+            exprParts.push(`<span class="layer-badge interface">INTERFACE</span>
+<span class="syntax-keyword">#Action</span>: {
+  <span class="syntax-field">name</span>:        <span class="syntax-keyword">string</span>
+  <span class="syntax-field">description</span>: <span class="syntax-keyword">string</span>
+  <span class="syntax-field">command</span>:     <span class="syntax-keyword">string</span>
+  <span class="syntax-field">category</span>?:   <span class="syntax-keyword">string</span>
+}`);
+        }
+        if (activeLayers.includes('provider')) {
+            exprParts.push(getProviderExpr(providerKey, action));
+        }
+        if (activeLayers.includes('instance')) {
+            exprParts.push(getInstanceExpr(providerKey));
+        }
+        exprPane.innerHTML = exprParts.join('\n\n');
+
+        // Show evaluation based on which layers are active
+        if (activeLayers.includes('instance')) {
+            evalPane.innerHTML = `<span class="layer-badge unified">UNIFIED</span>
+<span class="syntax-field">${action}</span>: {
+  <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+  <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+  <span class="syntax-field">command</span>:     <span class="syntax-string">"${a.computed}"</span>
+  <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+}`;
+        } else if (activeLayers.includes('provider')) {
+            evalPane.innerHTML = `<span class="syntax-comment">// Template with unbound parameters</span>
+<span class="syntax-field">${action}</span>: {
+  <span class="syntax-field">name</span>:        <span class="syntax-string">"${a.name}"</span>
+  <span class="syntax-field">description</span>: <span class="syntax-string">"${a.description}"</span>
+  <span class="syntax-field">command</span>:     <span class="syntax-string">"${a.template}"</span>
+  <span class="syntax-field">category</span>:    <span class="syntax-string">"${a.category}"</span>
+}`;
+        } else if (activeLayers.includes('interface')) {
+            evalPane.innerHTML = `<span class="syntax-comment">// Schema only - no concrete values yet</span>
+<span class="syntax-field">name</span>:        <span class="syntax-keyword">string</span>
+<span class="syntax-field">description</span>: <span class="syntax-keyword">string</span>
+<span class="syntax-field">command</span>:     <span class="syntax-keyword">string</span>
+<span class="syntax-field">category</span>?:   <span class="syntax-keyword">string</span>`;
+        }
+    }
+
+    // Composition view event handlers
+    document.getElementById('comp-provider').addEventListener('change', updateCompositionView);
+    document.getElementById('comp-action').addEventListener('change', updateCompositionView);
+    document.querySelectorAll('.layer-toggle button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.classList.toggle('active');
+            updateCompositionView();
+        });
+    });
+
+    // Initialize composition view
+    updateCompositionView();
+
+    // =========================================
+    // API Explorer Functions
+    // =========================================
+
+    // Store last query results for "Show in Graph" functionality
+    let lastQueryResults = {
+        impact: { target: null, affected: [] },
+        chain: { target: null, path: [] },
+        immediate: { target: null, dependents: [] },
+        criticality: { ranked: [] }
+    };
+
+    // Populate API explorer dropdowns when graph data loads
+    function populateApiExplorer() {
+        if (!graphData || !graphData.nodes) return;
+
+        const selects = ['impact-target', 'chain-target', 'immediate-target'];
+        const sortedNodes = [...graphData.nodes].sort((a, b) => b.dependents - a.dependents);
+
+        selects.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            select.innerHTML = sortedNodes.map(n =>
+                `<option value="${n.id}">${n.id} (${n.dependents} deps)</option>`
+            ).join('');
+        });
+
+        // Update CUE expression displays
+        updateCueExpressions();
+
+        // Add change handlers to update CUE expressions
+        selects.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (select) {
+                select.addEventListener('change', updateCueExpressions);
+            }
+        });
+    }
+
+    function updateCueExpressions() {
+        const impactTarget = document.getElementById('impact-target');
+        const chainTarget = document.getElementById('chain-target');
+        const immediateTarget = document.getElementById('immediate-target');
+
+        if (impactTarget) {
+            document.getElementById('impact-target-expr').textContent = impactTarget.value;
+        }
+        if (chainTarget) {
+            document.getElementById('chain-target-expr').textContent = chainTarget.value;
+        }
+        if (immediateTarget) {
+            document.getElementById('immediate-target-expr').textContent = immediateTarget.value;
+        }
+    }
+
+    // ImpactQuery: Find all nodes affected if target fails
+    function runImpactQuery() {
+        const target = document.getElementById('impact-target').value;
+        if (!target || !graphData) return;
+
+        // Find all nodes that have target in their ancestors (transitive dependents)
+        const affected = graphData.nodes
+            .filter(n => n.ancestors && n.ancestors.includes(target))
+            .map(n => n.id);
+
+        const result = {
+            target: target,
+            affected: affected,
+            count: affected.length
+        };
+
+        // Store for Show in Graph
+        lastQueryResults.impact = { target, affected };
+
+        // Display result
+        document.getElementById('impact-result').style.display = 'block';
+        document.getElementById('impact-count').textContent = `${affected.length} nodes`;
+        document.getElementById('impact-output').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('impact-show-graph').style.display = affected.length > 0 ? 'flex' : 'none';
+    }
+
+    // DependencyChain: Get path from target to root(s)
+    function runDependencyChain() {
+        const target = document.getElementById('chain-target').value;
+        if (!target || !graphData) return;
+
+        const targetNode = graphData.nodes.find(n => n.id === target);
+        if (!targetNode) return;
+
+        // Build the path: target + its ancestors (sorted by depth, ascending to show path to roots)
+        const ancestorNodes = (targetNode.ancestors || [])
+            .map(id => graphData.nodes.find(n => n.id === id))
+            .filter(n => n)
+            .sort((a, b) => a.depth - b.depth);
+
+        const path = [target, ...ancestorNodes.map(n => n.id)];
+
+        // Build a more detailed chain showing depth at each step
+        const chain = path.map(id => {
+            const node = graphData.nodes.find(n => n.id === id);
+            return { id, depth: node ? node.depth : 0 };
+        });
+
+        const result = {
+            target: target,
+            path: path,
+            chain: chain,
+            depth: targetNode.depth
+        };
+
+        // Store for Show in Graph
+        lastQueryResults.chain = { target, path };
+
+        // Display result
+        document.getElementById('chain-result').style.display = 'block';
+        document.getElementById('chain-count').textContent = `${path.length} nodes in path`;
+        document.getElementById('chain-output').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('chain-show-graph').style.display = path.length > 0 ? 'flex' : 'none';
+    }
+
+    // ImmediateDependents: Direct dependents only (not transitive)
+    function runImmediateDependents() {
+        const target = document.getElementById('immediate-target').value;
+        if (!target || !graphData) return;
+
+        // Find nodes where target is a direct dependency (source in edges)
+        const dependents = graphData.edges
+            .filter(e => e.source === target)
+            .map(e => e.target);
+
+        const result = {
+            target: target,
+            dependents: dependents,
+            count: dependents.length
+        };
+
+        // Store for Show in Graph
+        lastQueryResults.immediate = { target, dependents };
+
+        // Display result
+        document.getElementById('immediate-result').style.display = 'block';
+        document.getElementById('immediate-count').textContent = `${dependents.length} direct dependents`;
+        document.getElementById('immediate-output').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('immediate-show-graph').style.display = dependents.length > 0 ? 'flex' : 'none';
+    }
+
+    // CriticalityRank: Show pre-computed criticality ranking
+    function runCriticalityRank() {
+        if (!graphData || !graphData.criticality) return;
+
+        const ranked = [...graphData.criticality].sort((a, b) => b.dependents - a.dependents);
+
+        const result = {
+            ranked: ranked,
+            most_critical: ranked[0] || null,
+            total: ranked.length
+        };
+
+        // Store for Show in Graph (top 5 most critical)
+        lastQueryResults.criticality = { ranked: ranked.slice(0, 5).map(r => r.name) };
+
+        // Display result
+        document.getElementById('criticality-result').style.display = 'block';
+        document.getElementById('criticality-count').textContent = `${ranked.length} nodes ranked`;
+        document.getElementById('criticality-output').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('criticality-show-graph').style.display = 'flex';
+    }
+
+    // GroupByType: Show pre-computed type grouping
+    function runGroupByType() {
+        if (!graphData || !graphData.byType) return;
+
+        const groups = graphData.byType;
+        const typeCount = Object.keys(groups).length;
+        const totalResources = Object.values(groups).reduce((sum, arr) => sum + arr.length, 0);
+
+        const result = {
+            groups: groups,
+            type_count: typeCount,
+            total_resources: totalResources
+        };
+
+        // Display result
+        document.getElementById('bytype-result').style.display = 'block';
+        document.getElementById('bytype-count').textContent = `${typeCount} types`;
+        document.getElementById('bytype-output').textContent = JSON.stringify(result, null, 2);
+    }
+
+    // Topology: Show layer ordering
+    function runTopology() {
+        if (!graphData || !graphData.topology) return;
+
+        const topology = graphData.topology;
+        const layerCount = Object.keys(topology).length;
+        const nodesPerLayer = Object.entries(topology).map(([layer, nodes]) => ({
+            layer,
+            count: nodes.length,
+            nodes: nodes
+        }));
+
+        const result = {
+            topology: topology,
+            layer_count: layerCount,
+            summary: nodesPerLayer.map(l => `${l.layer}: ${l.count} nodes`).join(', ')
+        };
+
+        // Display result
+        document.getElementById('topology-result').style.display = 'block';
+        document.getElementById('topology-count').textContent = `${layerCount} layers`;
+        document.getElementById('topology-output').textContent = JSON.stringify(result, null, 2);
+    }
+
+    // ValidateGraph: Show validation results
+    function runValidateGraph() {
+        if (!graphData || !graphData.validation) return;
+
+        const validation = graphData.validation;
+        const result = {
+            valid: validation.valid,
+            issues: validation.issues || [],
+            issue_count: (validation.issues || []).length
+        };
+
+        // Display result
+        document.getElementById('validate-result').style.display = 'block';
+        const statusText = validation.valid ? 'Valid' : `${result.issue_count} issues`;
+        document.getElementById('validate-count').textContent = statusText;
+        document.getElementById('validate-output').textContent = JSON.stringify(result, null, 2);
+    }
+
+    // Show in Graph: Switch to graph view and highlight relevant nodes
+    function showInGraph(queryType) {
+        // Switch to graph view
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelector('nav button[data-view="graph"]').classList.add('active');
+        document.getElementById('view-graph').classList.add('active');
+        document.querySelector('main').classList.remove('composition-active');
+        document.body.classList.remove('composition-active');
+
+        // Clear any existing highlights
+        clearImpactHighlight();
+
+        const results = lastQueryResults[queryType];
+        if (!results) return;
+
+        switch (queryType) {
+            case 'impact':
+                // Highlight target as source, affected nodes as impact
+                if (results.target) {
+                    cy.nodes().addClass('dimmed');
+                    cy.edges().addClass('dimmed');
+                    cy.getElementById(results.target).removeClass('dimmed').addClass('impact-source');
+                    results.affected.forEach(id => {
+                        cy.getElementById(id).removeClass('dimmed').addClass('impact-highlight');
+                    });
+                    // Highlight edges between affected nodes
+                    cy.edges().forEach(edge => {
+                        const src = edge.source().id();
+                        const tgt = edge.target().id();
+                        if ((src === results.target && results.affected.includes(tgt)) ||
+                            (results.affected.includes(src) && results.affected.includes(tgt))) {
+                            edge.removeClass('dimmed').addClass('impact-highlight');
+                        }
+                    });
+                    // Enable impact mode
+                    document.getElementById('impact-mode').checked = true;
+                }
+                break;
+
+            case 'chain':
+                // Highlight the dependency chain path
+                if (results.path && results.path.length > 0) {
+                    cy.nodes().addClass('dimmed');
+                    cy.edges().addClass('dimmed');
+                    // Highlight target differently
+                    cy.getElementById(results.target).removeClass('dimmed').addClass('impact-source');
+                    // Highlight other nodes in path
+                    results.path.forEach((id, idx) => {
+                        if (id !== results.target) {
+                            cy.getElementById(id).removeClass('dimmed').addClass('impact-highlight');
+                        }
+                    });
+                    // Highlight edges along the path
+                    for (let i = 0; i < results.path.length - 1; i++) {
+                        const src = results.path[i + 1]; // Ancestor is source
+                        const tgt = results.path[i];     // Current is target
+                        cy.edges().forEach(edge => {
+                            if (edge.source().id() === src && edge.target().id() === tgt) {
+                                edge.removeClass('dimmed').addClass('impact-highlight');
+                            }
+                        });
+                    }
+                }
+                break;
+
+            case 'immediate':
+                // Highlight target and its immediate dependents
+                if (results.target) {
+                    cy.nodes().addClass('dimmed');
+                    cy.edges().addClass('dimmed');
+                    cy.getElementById(results.target).removeClass('dimmed').addClass('impact-source');
+                    results.dependents.forEach(id => {
+                        cy.getElementById(id).removeClass('dimmed').addClass('impact-highlight');
+                        // Find and highlight the direct edge
+                        cy.edges().forEach(edge => {
+                            if (edge.source().id() === results.target && edge.target().id() === id) {
+                                edge.removeClass('dimmed').addClass('impact-highlight');
+                            }
+                        });
+                    });
+                }
+                break;
+
+            case 'criticality':
+                // Highlight top critical nodes
+                if (results.ranked && results.ranked.length > 0) {
+                    cy.nodes().addClass('dimmed');
+                    cy.edges().addClass('dimmed');
+                    results.ranked.forEach((id, idx) => {
+                        const node = cy.getElementById(id);
+                        node.removeClass('dimmed');
+                        if (idx === 0) {
+                            node.addClass('impact-source'); // Most critical
+                        } else {
+                            node.addClass('impact-highlight');
+                        }
+                    });
+                }
+                break;
+        }
+
+        // Fit view to highlighted nodes after a short delay
+        setTimeout(() => {
+            const highlighted = cy.nodes().filter(n => !n.hasClass('dimmed'));
+            if (highlighted.length > 0 && highlighted.length < cy.nodes().length) {
+                cy.fit(highlighted, 80);
+            }
+        }, 100);
+    }
+
+    // Initialize on load
+    init();
+    </script>
+</body>
+</html>

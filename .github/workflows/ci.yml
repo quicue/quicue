@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUE
+        uses: cue-lang/setup-cue@v1.0.1
+        with:
+          version: 'latest'
+
+      - name: Validate vocab
+        run: cue vet ./vocab/...
+
+      - name: Validate patterns
+        run: cue vet ./patterns/...
+
+      - name: Validate examples
+        run: |
+          cue vet -c=false ./examples/3-layer/...
+          cue vet -c=false ./examples/type-composition/...
+          cue vet -c=false ./examples/jsonld-export/...
+          cue vet -c=false ./examples/graph-patterns/...
+          cue vet -c=false ./examples/multi-region/...
+          cue vet -c=false ./examples/provider-demo/...
+          cue vet -c=false ./examples/lvp/...
+          cue vet -c=false ./examples/operational/...
+          cue vet -c=false ./examples/dependents-pattern/...
+
+  generate:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUE
+        uses: cue-lang/setup-cue@v1.0.1
+        with:
+          version: 'latest'
+
+      - name: Generate outputs
+        run: |
+          mkdir -p out
+          cue export ./vocab -e context --out json > out/context.jsonld
+          cue export ./examples/3-layer/... -e output --out json > out/3-layer.json
+          cue export ./examples/type-composition/... -e output --out json > out/type-composition.json
+          cue export ./examples/jsonld-export/... --out json > out/jsonld-graph.json
+          cue export ./examples/graph-patterns/... -e output --out json > out/graph-patterns.json
+          cue export ./examples/multi-region/... -e output --out json > out/multi-region.json
+          cue export ./examples/operational/... -e output --out json > out/operational.json
+          cue export ./examples/dependents-pattern/... -e output --out json > out/dependents-pattern.json
+
+          # Generate mermaid diagram
+          echo '```mermaid' > out/graph.md
+          cue export ./examples/graph-patterns/... -e mermaid --out text >> out/graph.md
+          echo '```' >> out/graph.md
+
+          # Generate README with live output
+          cat > out/README.md << 'HEADER'
+          # quicue
+
+          CUE vocabulary for infrastructure-as-graph.
+
+          ## Structure
+
+          ```
+          vocab/      #Resource, #Action, #TypeRegistry, JSON-LD @context
+          patterns/   #InfraGraph, #ImpactQuery, #CriticalityRank, #ValidateGraph
+          examples/   Working demos
+          ```
+
+          ## Quick Start
+
+          ```bash
+          git clone https://github.com/quicue/quicue.git
+          cd quicue
+          cue eval ./examples/graph-patterns/ -e output
+          ```
+
+          ## Graph
+
+          HEADER
+          cat out/graph.md >> out/README.md
+          cat >> out/README.md << 'MID'
+
+          ## Example Output
+
+          ```
+          MID
+          cue eval ./examples/graph-patterns/ -e output >> out/README.md
+          echo '```' >> out/README.md
+          echo -e '\n## License\n\nMIT' >> out/README.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quicue-exports
+          path: out/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

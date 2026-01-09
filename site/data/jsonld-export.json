@@ -1,0 +1,140 @@
+{
+    "nodes": [
+        {
+            "@id": "https://infra.example.com/resources/dns-primary",
+            "id": "dns-primary",
+            "types": {
+                "DNSServer": true,
+                "LXCContainer": true,
+                "CriticalInfra": true
+            },
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 2
+        },
+        {
+            "@id": "https://infra.example.com/resources/reverse-proxy",
+            "id": "reverse-proxy",
+            "types": {
+                "ReverseProxy": true,
+                "LXCContainer": true
+            },
+            "depth": 1,
+            "ancestors": [
+                "dns-primary"
+            ],
+            "dependents": 1
+        },
+        {
+            "@id": "https://infra.example.com/resources/git-server",
+            "id": "git-server",
+            "types": {
+                "SourceControlManagement": true,
+                "LXCContainer": true
+            },
+            "depth": 2,
+            "ancestors": [
+                "dns-primary",
+                "reverse-proxy"
+            ],
+            "dependents": 0
+        },
+        {
+            "@id": "https://infra.example.com/resources/pve-node-1",
+            "id": "pve-node-1",
+            "types": {
+                "VirtualizationPlatform": true
+            },
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 0
+        }
+    ],
+    "@context": "https://quicue.ca/vocab#",
+    "@base": "https://infra.example.com/resources/",
+    "edges": [
+        {
+            "source": "dns-primary",
+            "target": "reverse-proxy"
+        },
+        {
+            "source": "dns-primary",
+            "target": "git-server"
+        },
+        {
+            "source": "reverse-proxy",
+            "target": "git-server"
+        }
+    ],
+    "topology": {
+        "layer_0": [
+            "dns-primary",
+            "pve-node-1"
+        ],
+        "layer_1": [
+            "reverse-proxy"
+        ],
+        "layer_2": [
+            "git-server"
+        ]
+    },
+    "roots": [
+        "dns-primary",
+        "pve-node-1"
+    ],
+    "leaves": [
+        "git-server",
+        "pve-node-1"
+    ],
+    "criticality": [
+        {
+            "name": "dns-primary",
+            "dependents": 2
+        },
+        {
+            "name": "reverse-proxy",
+            "dependents": 1
+        },
+        {
+            "name": "git-server",
+            "dependents": 0
+        },
+        {
+            "name": "pve-node-1",
+            "dependents": 0
+        }
+    ],
+    "byType": {
+        "DNSServer": [
+            "dns-primary"
+        ],
+        "LXCContainer": [
+            "dns-primary",
+            "reverse-proxy",
+            "git-server"
+        ],
+        "CriticalInfra": [
+            "dns-primary"
+        ],
+        "ReverseProxy": [
+            "reverse-proxy"
+        ],
+        "SourceControlManagement": [
+            "git-server"
+        ],
+        "VirtualizationPlatform": [
+            "pve-node-1"
+        ]
+    },
+    "metrics": {
+        "total": 4,
+        "maxDepth": 2,
+        "edges": 3,
+        "roots": 2,
+        "leaves": 2
+    },
+    "validation": {
+        "valid": true,
+        "issues": []
+    }
+}

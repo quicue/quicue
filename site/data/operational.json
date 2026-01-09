@@ -1,0 +1,248 @@
+{
+    "nodes": [
+        {
+            "id": "pve-node",
+            "types": {
+                "VirtualizationPlatform": true
+            },
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 7
+        },
+        {
+            "id": "dns",
+            "types": {
+                "DNSServer": true,
+                "CriticalInfra": true
+            },
+            "depth": 1,
+            "ancestors": [
+                "pve-node"
+            ],
+            "dependents": 5
+        },
+        {
+            "id": "auth",
+            "types": {
+                "AuthServer": true
+            },
+            "depth": 1,
+            "ancestors": [
+                "pve-node"
+            ],
+            "dependents": 2
+        },
+        {
+            "id": "db",
+            "types": {
+                "Database": true
+            },
+            "depth": 2,
+            "ancestors": [
+                "dns",
+                "pve-node"
+            ],
+            "dependents": 3
+        },
+        {
+            "id": "cache",
+            "types": {
+                "CacheCluster": true
+            },
+            "depth": 2,
+            "ancestors": [
+                "dns",
+                "pve-node"
+            ],
+            "dependents": 3
+        },
+        {
+            "id": "api",
+            "types": {
+                "APIServer": true
+            },
+            "depth": 3,
+            "ancestors": [
+                "db",
+                "cache",
+                "auth",
+                "dns",
+                "pve-node"
+            ],
+            "dependents": 1
+        },
+        {
+            "id": "web",
+            "types": {
+                "WebServer": true
+            },
+            "depth": 4,
+            "ancestors": [
+                "api",
+                "db",
+                "cache",
+                "auth",
+                "dns",
+                "pve-node"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "worker",
+            "types": {
+                "Worker": true
+            },
+            "depth": 3,
+            "ancestors": [
+                "db",
+                "cache",
+                "dns",
+                "pve-node"
+            ],
+            "dependents": 0
+        }
+    ],
+    "edges": [
+        {
+            "source": "pve-node",
+            "target": "dns"
+        },
+        {
+            "source": "pve-node",
+            "target": "auth"
+        },
+        {
+            "source": "dns",
+            "target": "db"
+        },
+        {
+            "source": "dns",
+            "target": "cache"
+        },
+        {
+            "source": "db",
+            "target": "api"
+        },
+        {
+            "source": "cache",
+            "target": "api"
+        },
+        {
+            "source": "auth",
+            "target": "api"
+        },
+        {
+            "source": "api",
+            "target": "web"
+        },
+        {
+            "source": "db",
+            "target": "worker"
+        },
+        {
+            "source": "cache",
+            "target": "worker"
+        }
+    ],
+    "topology": {
+        "layer_0": [
+            "pve-node"
+        ],
+        "layer_1": [
+            "dns",
+            "auth"
+        ],
+        "layer_2": [
+            "db",
+            "cache"
+        ],
+        "layer_3": [
+            "api",
+            "worker"
+        ],
+        "layer_4": [
+            "web"
+        ]
+    },
+    "roots": [
+        "pve-node"
+    ],
+    "leaves": [
+        "web",
+        "worker"
+    ],
+    "criticality": [
+        {
+            "name": "pve-node",
+            "dependents": 7
+        },
+        {
+            "name": "dns",
+            "dependents": 5
+        },
+        {
+            "name": "auth",
+            "dependents": 2
+        },
+        {
+            "name": "db",
+            "dependents": 3
+        },
+        {
+            "name": "cache",
+            "dependents": 3
+        },
+        {
+            "name": "api",
+            "dependents": 1
+        },
+        {
+            "name": "web",
+            "dependents": 0
+        },
+        {
+            "name": "worker",
+            "dependents": 0
+        }
+    ],
+    "byType": {
+        "VirtualizationPlatform": [
+            "pve-node"
+        ],
+        "DNSServer": [
+            "dns"
+        ],
+        "CriticalInfra": [
+            "dns"
+        ],
+        "AuthServer": [
+            "auth"
+        ],
+        "Database": [
+            "db"
+        ],
+        "CacheCluster": [
+            "cache"
+        ],
+        "APIServer": [
+            "api"
+        ],
+        "WebServer": [
+            "web"
+        ],
+        "Worker": [
+            "worker"
+        ]
+    },
+    "metrics": {
+        "total": 8,
+        "maxDepth": 4,
+        "edges": 10,
+        "roots": 1,
+        "leaves": 2
+    },
+    "validation": {
+        "valid": true,
+        "issues": []
+    }
+}

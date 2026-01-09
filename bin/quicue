@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# quicue - thin wrapper for CUE infrastructure-as-graph
+# Shows commands before running them for learning/debugging
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+QUICUE_DIR="${QUICUE_DIR:-$(dirname "$SCRIPT_DIR")}"
+
+run() {
+    echo "$ $*" >&2
+    "$@"
+}
+
+# Resolve path: example name -> examples/name, or keep as-is for user paths
+resolve_example() {
+    local path="$1"
+    if [[ -d "${QUICUE_DIR}/examples/${path}" ]]; then
+        echo "examples/${path}/"
+    elif [[ -d "$path" ]] || [[ -f "$path" ]]; then
+        echo "$path"
+    else
+        echo "Error: '${path}' not found" >&2
+        echo "Available examples: $(ls -1 "${QUICUE_DIR}/examples" 2>/dev/null | tr '\n' ' ')" >&2
+        exit 1
+    fi
+}
+
+case "${1:-help}" in
+    impact)
+        # quicue impact <target> [-f path] [--format json|tree] [--compact]
+        shift
+        target=""
+        path="graph-patterns"
+        format="json"
+        compact=false
+
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -f|--file)
+                    path="$2"
+                    shift 2
+                    ;;
+                --format)
+                    format="$2"
+                    shift 2
+                    ;;
+                --compact|-c)
+                    compact=true
+                    shift
+                    ;;
+                -*)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+                *)
+                    target="$1"
+                    shift
+                    ;;
+            esac
+        done
+
+        if [[ -z "$target" ]]; then
+            echo "Error: target resource name required" >&2
+            echo "Usage: quicue impact <target> [-f path] [--format json|tree] [--compact]" >&2
+            exit 1
+        fi
+
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+
+        tmpfile="${resolved}/quicue_impact_$$.cue"
+        trap "rm -f '$tmpfile'" EXIT
+
+        cat > "$tmpfile" << IMPACT_EOF
+package main
+
+import "quicue.ca/patterns@v0"
+
+impact_query: patterns.#ImpactQuery & {
+    Graph: infra
+    Target: "${target}"
+}
+IMPACT_EOF
+
+        result=$(cue eval "./${resolved}" -e 'impact_query' --out json)
+        rm -f "$tmpfile"
+
+        case "$format" in
+            json)
+                if $compact; then
+                    echo "$result" | jq '{target: .Target, affected: .affected, affected_count: .affected_count}'
+                else
+                    echo "$result"
+                fi
+                ;;
+            tree)
+                affected=$(echo "$result" | jq -r '.affected[]' 2>/dev/null)
+                count=$(echo "$result" | jq -r '.affected_count' 2>/dev/null)
+                echo "Impact of '$target' failure:"
+                echo "  Affected resources ($count):"
+                for r in $affected; do
+                    echo "    - $r"
+                done
+                ;;
+            *)
+                echo "Error: unknown format '$format' (use json or tree)" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    criticality)
+        # quicue criticality [-f path] [-n top]
+        shift
+        path="graph-patterns"
+        top=10
+
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -f|--file)
+                    path="$2"
+                    shift 2
+                    ;;
+                -n|--top)
+                    top="$2"
+                    shift 2
+                    ;;
+                -*)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+
+        tmpfile="${resolved}/quicue_crit_$$.cue"
+        trap "rm -f '$tmpfile'" EXIT
+
+        cat > "$tmpfile" << CRIT_EOF
+package main
+
+import "quicue.ca/patterns@v0"
+
+crit_query: patterns.#CriticalityRank & {Graph: infra}
+CRIT_EOF
+
+        result=$(cue eval "./${resolved}" -e 'crit_query.ranked' --out json)
+        rm -f "$tmpfile"
+        echo "$result" | jq ".[:${top}]"
+        ;;
+
+    validate)
+        # quicue validate [-f path]
+        shift
+        path="${1:-graph-patterns}"
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+
+        tmpfile="${resolved}/quicue_validate_$$.cue"
+        trap "rm -f '$tmpfile'" EXIT
+
+        cat > "$tmpfile" << VALIDATE_EOF
+package main
+
+import "quicue.ca/patterns@v0"
+
+validate_query: patterns.#ValidateGraph & {Input: infra.Input}
+VALIDATE_EOF
+
+        result=$(cue eval "./${resolved}" -e 'validate_query' --out json)
+        rm -f "$tmpfile"
+
+        errors=$(echo "$result" | jq '.errors | length')
+        if [[ "$errors" == "0" ]]; then
+            echo "Graph valid: no errors found"
+            exit 0
+        else
+            echo "$result" | jq '{errors: .errors, warnings: .warnings}'
+            exit 1
+        fi
+        ;;
+
+    eval)
+        # quicue eval [path] [expr]
+        path="${2:-graph-patterns}"
+        expr="${3:-output}"
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+        run cue eval "./${resolved}" -e "$expr"
+        ;;
+    export)
+        # quicue export [path]
+        path="${2:-jsonld-export}"
+        resolved=$(resolve_example "$path")
+        cd "$QUICUE_DIR"
+        run cue export "./${resolved}" --out json
+        ;;
+    vet)
+        # Validate all quicue files, or a specific path
+        cd "$QUICUE_DIR"
+        if [[ -n "${2:-}" ]]; then
+            run cue vet "$2"
+        else
+            run cue vet ./vocab/...
+            run cue vet ./patterns/...
+            run cue vet -c=false ./examples/...
+        fi
+        ;;
+    mermaid)
+        cd "$QUICUE_DIR"
+        run cue export ./examples/graph-patterns/ -e mermaid --out text
+        ;;
+    context)
+        cd "$QUICUE_DIR"
+        run cue export ./vocab/ -e context --out json
+        ;;
+    list)
+        echo "Available examples:"
+        ls -1 "${QUICUE_DIR}/examples"
+        ;;
+    help|*)
+        cat <<'EOF'
+quicue - CUE vocabulary for infrastructure-as-graph
+
+Analysis:
+  quicue impact <target> [-f path] [--format json|tree] [-c|--compact]
+                              What breaks if target fails
+  quicue criticality [-f path] [-n top]
+                              Rank resources by dependent count
+  quicue validate [-f path]   Check graph for errors (missing deps, cycles)
+
+General:
+  quicue eval [path] [expr]   Evaluate CUE (default: graph-patterns, output)
+  quicue export [path]        Export as JSON (default: jsonld-export)
+  quicue vet [path]           Validate CUE syntax (default: all)
+  quicue list                 List bundled examples
+
+Path can be:
+  - Example name:  graph-patterns, multi-region, 3-layer, type-composition
+  - Directory:     ./my-infra/
+
+Examples:
+  quicue impact dns-primary                    # what breaks if dns-primary fails
+  quicue impact dns-primary -c                 # compact output
+  quicue impact dns-primary --format tree      # tree view
+  quicue criticality                           # top 10 critical resources
+  quicue criticality -n 5                      # top 5
+  quicue validate -f ./my-infra/               # check graph integrity
+
+Environment:
+  QUICUE_DIR   Path to quicue repo (default: script directory)
+EOF
+        ;;
+esac

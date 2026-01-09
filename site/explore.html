@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>quicue - D3 Data Explorer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+        }
+        header {
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        h1 { font-size: 1.5rem; font-weight: 600; }
+        h1 a { color: #c9d1d9; text-decoration: none; }
+        h1 span { color: #8b949e; font-weight: 400; }
+        nav {
+            display: flex;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+        }
+        nav button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        nav button:hover { background: #30363d; }
+        nav button.active { background: #238636; border-color: #238636; color: white; }
+        select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .links a {
+            color: #58a6ff;
+            text-decoration: none;
+            margin-left: 1rem;
+        }
+        main {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        #viz {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #161b22;
+        }
+        #viz svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        aside {
+            width: 300px;
+            padding: 1.5rem;
+            border-left: 1px solid #30363d;
+            overflow-y: auto;
+        }
+        .panel { margin-bottom: 1.5rem; }
+        .panel h2 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b949e;
+            margin-bottom: 0.75rem;
+        }
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .stat-label { color: #8b949e; }
+        .stat-value { font-family: monospace; color: #58a6ff; }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        /* Sankey styles */
+        .sankey .link { fill: none; stroke-opacity: 0.4; }
+        .sankey .link:hover { stroke-opacity: 0.7; }
+        .sankey .node rect { fill-opacity: 0.9; }
+        .sankey .node text { font-size: 11px; fill: #c9d1d9; }
+        /* Chord styles */
+        .chord .group path { fill-opacity: 0.8; }
+        .chord .ribbon { fill-opacity: 0.6; }
+        .chord .ribbon:hover { fill-opacity: 0.9; }
+        .chord text { font-size: 10px; fill: #c9d1d9; }
+        /* Matrix styles */
+        .matrix rect { stroke: #30363d; stroke-width: 0.5px; }
+        .matrix text { font-size: 9px; fill: #8b949e; }
+        .matrix .row text { text-anchor: end; }
+        /* Treemap styles */
+        .treemap rect { stroke: #0d1117; stroke-width: 1px; }
+        .treemap text { font-size: 10px; fill: white; pointer-events: none; }
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.85rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            max-width: 300px;
+            z-index: 100;
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip h4 { margin-bottom: 0.5rem; color: #58a6ff; }
+        .tooltip p { margin: 0.25rem 0; color: #8b949e; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="index.html">quicue</a> <span>/ D3 Explorer</span></h1>
+        <nav>
+            <button class="active" data-view="sankey">Sankey</button>
+            <button data-view="chord">Chord</button>
+            <button data-view="matrix">Matrix</button>
+            <button data-view="treemap">Treemap</button>
+            <button data-view="sunburst">Sunburst</button>
+        </nav>
+        <select id="example-select">
+            <option value="multi-region">multi-region (22 nodes)</option>
+            <option value="graph-patterns">graph-patterns</option>
+            <option value="operational">operational</option>
+            <option value="type-composition">type-composition</option>
+            <option value="3-layer">3-layer</option>
+        </select>
+        <div class="links">
+            <a href="index.html">Graph View</a>
+            <a href="https://github.com/quicue/quicue">GitHub</a>
+        </div>
+    </header>
+    <main>
+        <div id="viz"></div>
+        <aside>
+            <div class="panel" id="stats">
+                <h2>Statistics</h2>
+                <div class="stat"><span class="stat-label">Nodes</span><span class="stat-value" id="stat-nodes">-</span></div>
+                <div class="stat"><span class="stat-label">Edges</span><span class="stat-value" id="stat-edges">-</span></div>
+                <div class="stat"><span class="stat-label">Max Depth</span><span class="stat-value" id="stat-depth">-</span></div>
+                <div class="stat"><span class="stat-label">Types</span><span class="stat-value" id="stat-types">-</span></div>
+            </div>
+            <div class="panel" id="legend">
+                <h2>Legend</h2>
+                <div id="legend-items"></div>
+            </div>
+            <div class="panel" id="info">
+                <h2>About This View</h2>
+                <p id="view-description">-</p>
+            </div>
+        </aside>
+    </main>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+    const typeColors = {
+        'Region': '#f0883e',
+        'DNSServer': '#3fb950',
+        'AuthServer': '#a371f7',
+        'Database': '#58a6ff',
+        'CacheCluster': '#f778ba',
+        'APIServer': '#79c0ff',
+        'WebFrontend': '#ffa657',
+        'LoadBalancer': '#ff7b72',
+        'MessageQueue': '#d2a8ff',
+        'Worker': '#7ee787',
+        'ScheduledJob': '#a5d6ff',
+        'MonitoringServer': '#ffc658',
+        'LogAggregator': '#ffb86c',
+        'SearchIndex': '#bd93f9',
+        'VirtualizationPlatform': '#ff79c6',
+        'LXCContainer': '#8be9fd',
+        'Container': '#8be9fd',
+        'CriticalInfra': '#ff5555',
+        'ReverseProxy': '#50fa7b',
+        'SourceControlManagement': '#f1fa8c',
+        'default': '#6e7681'
+    };
+
+    const viewDescriptions = {
+        sankey: 'Sankey diagram shows dependency flow from roots to leaves. Width indicates number of downstream dependents.',
+        chord: 'Chord diagram shows type-to-type relationships. Ribbons connect types that have dependencies between them.',
+        matrix: 'Adjacency matrix shows all dependencies. Filled cells indicate a dependency from row to column.',
+        treemap: 'Treemap shows resources grouped by type. Size indicates number of dependents (criticality).',
+        sunburst: 'Sunburst shows hierarchical depth. Inner ring is roots, outer rings are deeper dependencies.'
+    };
+
+    let currentData = null;
+    let currentView = 'sankey';
+
+    function getNodeColor(node) {
+        const types = node.types || [];
+        for (const t of types) {
+            if (typeColors[t]) return typeColors[t];
+        }
+        return typeColors.default;
+    }
+
+    async function loadData(example) {
+        const response = await fetch(`data/${example}.json`);
+        currentData = await response.json();
+        updateStats();
+        updateLegend();
+        renderView(currentView);
+    }
+
+    function updateStats() {
+        document.getElementById('stat-nodes').textContent = currentData.nodes.length;
+        document.getElementById('stat-edges').textContent = currentData.edges.length;
+        document.getElementById('stat-depth').textContent = currentData.metrics?.maxDepth || Math.max(...currentData.nodes.map(n => n.depth));
+        const types = new Set();
+        currentData.nodes.forEach(n => (n.types || []).forEach(t => types.add(t)));
+        document.getElementById('stat-types').textContent = types.size;
+    }
+
+    function updateLegend() {
+        const types = new Set();
+        currentData.nodes.forEach(n => (n.types || []).forEach(t => types.add(t)));
+        const container = document.getElementById('legend-items');
+        container.innerHTML = '';
+        [...types].sort().forEach(type => {
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            item.innerHTML = `<div class="legend-color" style="background: ${typeColors[type] || typeColors.default}"></div><span>${type}</span>`;
+            container.appendChild(item);
+        });
+    }
+
+    function renderView(view) {
+        currentView = view;
+        document.getElementById('view-description').textContent = viewDescriptions[view];
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        document.querySelector(`nav button[data-view="${view}"]`).classList.add('active');
+
+        const container = document.getElementById('viz');
+        container.innerHTML = '';
+
+        switch(view) {
+            case 'sankey': renderSankey(container); break;
+            case 'chord': renderChord(container); break;
+            case 'matrix': renderMatrix(container); break;
+            case 'treemap': renderTreemap(container); break;
+            case 'sunburst': renderSunburst(container); break;
+        }
+    }
+
+    function renderSankey(container) {
+        const width = container.clientWidth - 40;
+        const height = container.clientHeight - 40;
+
+        const svg = d3.select(container).append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .attr('class', 'sankey');
+
+        const nodeMap = new Map(currentData.nodes.map(n => [n.id, n]));
+        const sankeyData = {
+            nodes: currentData.nodes.map(n => ({ ...n, name: n.id })),
+            links: currentData.edges.map(e => ({
+                source: currentData.nodes.findIndex(n => n.id === e.target),
+                target: currentData.nodes.findIndex(n => n.id === e.source),
+                value: 1
+            })).filter(l => l.source >= 0 && l.target >= 0)
+        };
+
+        if (sankeyData.links.length === 0) {
+            svg.append('text').attr('x', width/2).attr('y', height/2)
+                .attr('text-anchor', 'middle').attr('fill', '#8b949e')
+                .text('No dependencies to visualize');
+            return;
+        }
+
+        const sankey = d3.sankey()
+            .nodeWidth(15)
+            .nodePadding(10)
+            .extent([[20, 20], [width - 20, height - 20]]);
+
+        const { nodes, links } = sankey(sankeyData);
+
+        svg.append('g').selectAll('rect')
+            .data(nodes)
+            .join('rect')
+            .attr('class', 'node')
+            .attr('x', d => d.x0)
+            .attr('y', d => d.y0)
+            .attr('height', d => Math.max(1, d.y1 - d.y0))
+            .attr('width', d => d.x1 - d.x0)
+            .attr('fill', d => getNodeColor(d))
+            .on('mouseover', showTooltip)
+            .on('mouseout', hideTooltip);
+
+        svg.append('g').selectAll('path')
+            .data(links)
+            .join('path')
+            .attr('class', 'link')
+            .attr('d', d3.sankeyLinkHorizontal())
+            .attr('stroke', d => getNodeColor(d.target))
+            .attr('stroke-width', d => Math.max(1, d.width));
+
+        svg.append('g').selectAll('text')
+            .data(nodes)
+            .join('text')
+            .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+            .attr('y', d => (d.y1 + d.y0) / 2)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+            .text(d => d.id);
+    }
+
+    function renderChord(container) {
+        const width = Math.min(container.clientWidth, container.clientHeight) - 100;
+        const height = width;
+        const outerRadius = width / 2 - 40;
+        const innerRadius = outerRadius - 20;
+
+        const svg = d3.select(container).append('svg')
+            .attr('width', width + 100)
+            .attr('height', height + 100)
+            .attr('class', 'chord')
+            .append('g')
+            .attr('transform', `translate(${(width + 100) / 2}, ${(height + 100) / 2})`);
+
+        // Build type-to-type matrix
+        const types = [...new Set(currentData.nodes.flatMap(n => n.types || []))].sort();
+        const typeIndex = new Map(types.map((t, i) => [t, i]));
+        const matrix = Array(types.length).fill(null).map(() => Array(types.length).fill(0));
+
+        currentData.edges.forEach(e => {
+            const source = currentData.nodes.find(n => n.id === e.source);
+            const target = currentData.nodes.find(n => n.id === e.target);
+            if (source && target) {
+                (source.types || []).forEach(st => {
+                    (target.types || []).forEach(tt => {
+                        const si = typeIndex.get(st);
+                        const ti = typeIndex.get(tt);
+                        if (si !== undefined && ti !== undefined) {
+                            matrix[si][ti]++;
+                        }
+                    });
+                });
+            }
+        });
+
+        const chord = d3.chord().padAngle(0.05).sortSubgroups(d3.descending);
+        const chords = chord(matrix);
+
+        const arc = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
+        const ribbon = d3.ribbon().radius(innerRadius);
+
+        svg.append('g').selectAll('g')
+            .data(chords.groups)
+            .join('g')
+            .attr('class', 'group')
+            .append('path')
+            .attr('d', arc)
+            .attr('fill', d => typeColors[types[d.index]] || typeColors.default)
+            .attr('stroke', '#0d1117');
+
+        svg.append('g').selectAll('g')
+            .data(chords.groups)
+            .join('g')
+            .append('text')
+            .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+            .attr('dy', '0.35em')
+            .attr('transform', d => `rotate(${(d.angle * 180 / Math.PI - 90)}) translate(${outerRadius + 10}) ${d.angle > Math.PI ? 'rotate(180)' : ''}`)
+            .attr('text-anchor', d => d.angle > Math.PI ? 'end' : null)
+            .text(d => types[d.index]);
+
+        svg.append('g').selectAll('path')
+            .data(chords)
+            .join('path')
+            .attr('class', 'ribbon')
+            .attr('d', ribbon)
+            .attr('fill', d => typeColors[types[d.source.index]] || typeColors.default);
+    }
+
+    function renderMatrix(container) {
+        const nodes = currentData.nodes;
+        const n = nodes.length;
+        const margin = { top: 100, right: 20, bottom: 20, left: 100 };
+        const size = Math.min(container.clientWidth - margin.left - margin.right, container.clientHeight - margin.top - margin.bottom);
+        const cellSize = Math.floor(size / n);
+
+        const svg = d3.select(container).append('svg')
+            .attr('width', size + margin.left + margin.right)
+            .attr('height', size + margin.top + margin.bottom)
+            .attr('class', 'matrix')
+            .append('g')
+            .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
+        const nodeIndex = new Map(nodes.map((n, i) => [n.id, i]));
+        const matrix = Array(n).fill(null).map(() => Array(n).fill(0));
+
+        currentData.edges.forEach(e => {
+            const si = nodeIndex.get(e.source);
+            const ti = nodeIndex.get(e.target);
+            if (si !== undefined && ti !== undefined) {
+                matrix[si][ti] = 1;
+            }
+        });
+
+        // Grid
+        const rows = svg.selectAll('.row')
+            .data(matrix)
+            .join('g')
+            .attr('class', 'row')
+            .attr('transform', (d, i) => `translate(0, ${i * cellSize})`);
+
+        rows.selectAll('rect')
+            .data((d, i) => d.map((v, j) => ({ value: v, i, j })))
+            .join('rect')
+            .attr('x', d => d.j * cellSize)
+            .attr('width', cellSize - 1)
+            .attr('height', cellSize - 1)
+            .attr('fill', d => d.value ? getNodeColor(nodes[d.i]) : '#21262d')
+            .attr('opacity', d => d.value ? 0.8 : 0.3)
+            .on('mouseover', (e, d) => {
+                if (d.value) {
+                    showTooltip(e, { id: `${nodes[d.i].id} → ${nodes[d.j].id}`, types: ['Dependency'] });
+                }
+            })
+            .on('mouseout', hideTooltip);
+
+        // Row labels
+        svg.selectAll('.row-label')
+            .data(nodes)
+            .join('text')
+            .attr('class', 'row-label')
+            .attr('x', -6)
+            .attr('y', (d, i) => i * cellSize + cellSize / 2)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', 'end')
+            .text(d => d.id.length > 12 ? d.id.slice(0, 10) + '…' : d.id);
+
+        // Column labels
+        svg.selectAll('.col-label')
+            .data(nodes)
+            .join('text')
+            .attr('class', 'col-label')
+            .attr('x', (d, i) => i * cellSize + cellSize / 2)
+            .attr('y', -6)
+            .attr('transform', (d, i) => `rotate(-90, ${i * cellSize + cellSize / 2}, -6)`)
+            .attr('text-anchor', 'start')
+            .text(d => d.id.length > 12 ? d.id.slice(0, 10) + '…' : d.id);
+    }
+
+    function renderTreemap(container) {
+        const width = container.clientWidth - 40;
+        const height = container.clientHeight - 40;
+
+        const svg = d3.select(container).append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .attr('class', 'treemap');
+
+        // Group by type
+        const byType = {};
+        currentData.nodes.forEach(n => {
+            const type = (n.types || ['Unknown'])[0];
+            if (!byType[type]) byType[type] = [];
+            byType[type].push(n);
+        });
+
+        const hierarchy = {
+            name: 'root',
+            children: Object.entries(byType).map(([type, nodes]) => ({
+                name: type,
+                children: nodes.map(n => ({
+                    name: n.id,
+                    value: (n.dependents || 0) + 1,
+                    node: n
+                }))
+            }))
+        };
+
+        const root = d3.hierarchy(hierarchy)
+            .sum(d => d.value)
+            .sort((a, b) => b.value - a.value);
+
+        d3.treemap()
+            .size([width, height])
+            .padding(2)
+            .paddingTop(20)(root);
+
+        const groups = svg.selectAll('g')
+            .data(root.children)
+            .join('g');
+
+        groups.append('rect')
+            .attr('x', d => d.x0)
+            .attr('y', d => d.y0)
+            .attr('width', d => d.x1 - d.x0)
+            .attr('height', d => d.y1 - d.y0)
+            .attr('fill', d => typeColors[d.data.name] || typeColors.default)
+            .attr('opacity', 0.3);
+
+        groups.append('text')
+            .attr('x', d => d.x0 + 4)
+            .attr('y', d => d.y0 + 14)
+            .attr('fill', '#c9d1d9')
+            .attr('font-weight', 'bold')
+            .attr('font-size', '11px')
+            .text(d => d.data.name);
+
+        const leaves = svg.selectAll('rect.leaf')
+            .data(root.leaves())
+            .join('rect')
+            .attr('class', 'leaf')
+            .attr('x', d => d.x0)
+            .attr('y', d => d.y0)
+            .attr('width', d => d.x1 - d.x0)
+            .attr('height', d => d.y1 - d.y0)
+            .attr('fill', d => typeColors[d.parent.data.name] || typeColors.default)
+            .on('mouseover', (e, d) => showTooltip(e, d.data.node))
+            .on('mouseout', hideTooltip);
+
+        svg.selectAll('text.leaf')
+            .data(root.leaves().filter(d => (d.x1 - d.x0) > 40 && (d.y1 - d.y0) > 14))
+            .join('text')
+            .attr('class', 'leaf')
+            .attr('x', d => d.x0 + 3)
+            .attr('y', d => d.y0 + 12)
+            .text(d => d.data.name.length > (d.x1 - d.x0) / 7 ? d.data.name.slice(0, Math.floor((d.x1 - d.x0) / 7)) + '…' : d.data.name);
+    }
+
+    function renderSunburst(container) {
+        const width = Math.min(container.clientWidth, container.clientHeight) - 40;
+        const radius = width / 2;
+
+        const svg = d3.select(container).append('svg')
+            .attr('width', width)
+            .attr('height', width)
+            .append('g')
+            .attr('transform', `translate(${width / 2}, ${width / 2})`);
+
+        // Build hierarchy by depth
+        const maxDepth = Math.max(...currentData.nodes.map(n => n.depth || 0));
+        const byDepth = {};
+        currentData.nodes.forEach(n => {
+            const d = n.depth || 0;
+            if (!byDepth[d]) byDepth[d] = [];
+            byDepth[d].push(n);
+        });
+
+        const hierarchy = {
+            name: 'root',
+            children: Object.entries(byDepth).sort((a, b) => a[0] - b[0]).map(([depth, nodes]) => ({
+                name: `Layer ${depth}`,
+                children: nodes.map(n => ({
+                    name: n.id,
+                    value: 1,
+                    node: n
+                }))
+            }))
+        };
+
+        const root = d3.hierarchy(hierarchy)
+            .sum(d => d.value)
+            .sort((a, b) => b.value - a.value);
+
+        const partition = d3.partition().size([2 * Math.PI, radius]);
+        partition(root);
+
+        const arc = d3.arc()
+            .startAngle(d => d.x0)
+            .endAngle(d => d.x1)
+            .innerRadius(d => d.y0)
+            .outerRadius(d => d.y1 - 1);
+
+        svg.selectAll('path')
+            .data(root.descendants().filter(d => d.depth))
+            .join('path')
+            .attr('d', arc)
+            .attr('fill', d => d.data.node ? getNodeColor(d.data.node) : '#30363d')
+            .attr('opacity', d => d.depth === 1 ? 0.3 : 0.8)
+            .on('mouseover', (e, d) => d.data.node && showTooltip(e, d.data.node))
+            .on('mouseout', hideTooltip);
+
+        svg.selectAll('text')
+            .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.1))
+            .join('text')
+            .attr('transform', d => {
+                const angle = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+                const r = (d.y0 + d.y1) / 2;
+                return `rotate(${angle - 90}) translate(${r}, 0) rotate(${angle > 180 ? 180 : 0})`;
+            })
+            .attr('dy', '0.35em')
+            .attr('text-anchor', 'middle')
+            .attr('fill', '#c9d1d9')
+            .attr('font-size', '9px')
+            .text(d => d.data.name.length > 10 ? d.data.name.slice(0, 8) + '…' : d.data.name);
+    }
+
+    function showTooltip(event, d) {
+        const tooltip = document.getElementById('tooltip');
+        tooltip.innerHTML = `
+            <h4>${d.id || d.name}</h4>
+            <p>Types: ${(d.types || []).join(', ') || '-'}</p>
+            <p>Depth: ${d.depth ?? '-'}</p>
+            <p>Dependents: ${d.dependents ?? '-'}</p>
+        `;
+        tooltip.style.left = (event.pageX + 10) + 'px';
+        tooltip.style.top = (event.pageY + 10) + 'px';
+        tooltip.classList.add('visible');
+    }
+
+    function hideTooltip() {
+        document.getElementById('tooltip').classList.remove('visible');
+    }
+
+    // Event handlers
+    document.querySelectorAll('nav button').forEach(btn => {
+        btn.addEventListener('click', () => renderView(btn.dataset.view));
+    });
+
+    document.getElementById('example-select').addEventListener('change', e => {
+        loadData(e.target.value);
+    });
+
+    // Initialize
+    loadData('multi-region');
+    </script>
+</body>
+</html>

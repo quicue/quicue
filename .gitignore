@@ -1,0 +1,22 @@
+# Generated outputs
+/out/
+*.jsonld
+
+# CUE cache
+.cue/
+
+# Local development
+.dev/
+.claude/
+CLAUDE.md
+task_plan.md
+notes.md
+quicue-cab/
+
+# CI local testing
+.gitlab-ci-local/
+
+# Experiments
+experiments/
+explorations/
+tmp/

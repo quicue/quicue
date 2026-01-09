@@ -1,0 +1,105 @@
+{
+    "nodes": [
+        {
+            "id": "dns-server",
+            "types": {
+                "DNSServer": true,
+                "LXCContainer": true
+            },
+            "depth": 1,
+            "ancestors": [
+                "pve-node-1"
+            ],
+            "dependents": 1
+        },
+        {
+            "id": "git-server",
+            "types": {
+                "SourceControlManagement": true,
+                "LXCContainer": true
+            },
+            "depth": 2,
+            "ancestors": [
+                "dns-server",
+                "pve-node-1"
+            ],
+            "dependents": 0
+        },
+        {
+            "id": "pve-node-1",
+            "types": {
+                "VirtualizationPlatform": true
+            },
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 2
+        }
+    ],
+    "edges": [
+        {
+            "source": "pve-node-1",
+            "target": "dns-server"
+        },
+        {
+            "source": "dns-server",
+            "target": "git-server"
+        }
+    ],
+    "topology": {
+        "layer_1": [
+            "dns-server"
+        ],
+        "layer_2": [
+            "git-server"
+        ],
+        "layer_0": [
+            "pve-node-1"
+        ]
+    },
+    "roots": [
+        "pve-node-1"
+    ],
+    "leaves": [
+        "git-server"
+    ],
+    "criticality": [
+        {
+            "name": "dns-server",
+            "dependents": 1
+        },
+        {
+            "name": "git-server",
+            "dependents": 0
+        },
+        {
+            "name": "pve-node-1",
+            "dependents": 2
+        }
+    ],
+    "byType": {
+        "DNSServer": [
+            "dns-server"
+        ],
+        "LXCContainer": [
+            "dns-server",
+            "git-server"
+        ],
+        "SourceControlManagement": [
+            "git-server"
+        ],
+        "VirtualizationPlatform": [
+            "pve-node-1"
+        ]
+    },
+    "metrics": {
+        "total": 3,
+        "maxDepth": 2,
+        "edges": 2,
+        "roots": 1,
+        "leaves": 1
+    },
+    "validation": {
+        "valid": true,
+        "issues": []
+    }
+}

@@ -1,0 +1,203 @@
+{
+    "nodes": [
+        {
+            "id": "hypervisor",
+            "types": {
+                "VirtualizationPlatform": true,
+                "Hypervisor": true
+            },
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 3,
+            "actions": [
+                "ping",
+                "ssh"
+            ],
+            "commands": {
+                "ping": "ping -c 3 10.0.0.1",
+                "ssh": "ssh admin@10.0.0.1"
+            }
+        },
+        {
+            "id": "dns",
+            "types": {
+                "DNSServer": true,
+                "Container": true,
+                "CriticalInfra": true
+            },
+            "depth": 1,
+            "ancestors": [
+                "hypervisor"
+            ],
+            "dependents": 2,
+            "actions": [
+                "dns_check",
+                "ping",
+                "ssh",
+                "status",
+                "console",
+                "logs"
+            ],
+            "commands": {
+                "dns_check": "dig @10.0.1.10 example.com",
+                "ping": "ping -c 3 10.0.1.10",
+                "ssh": "ssh root@10.0.1.10",
+                "status": "<provider> status dns-001 on hypervisor",
+                "console": "<provider> console dns-001",
+                "logs": "<provider> logs dns-001"
+            }
+        },
+        {
+            "id": "database",
+            "types": {
+                "Database": true,
+                "Container": true,
+                "CriticalInfra": true
+            },
+            "depth": 2,
+            "ancestors": [
+                "dns",
+                "hypervisor"
+            ],
+            "dependents": 1,
+            "actions": [
+                "db_check",
+                "ping",
+                "ssh",
+                "status",
+                "console",
+                "logs"
+            ],
+            "commands": {
+                "db_check": "nc -zv 10.0.1.20 5432",
+                "ping": "ping -c 3 10.0.1.20",
+                "ssh": "ssh dbadmin@10.0.1.20",
+                "status": "<provider> status db-001 on hypervisor",
+                "console": "<provider> console db-001",
+                "logs": "<provider> logs db-001"
+            }
+        },
+        {
+            "id": "api",
+            "types": {
+                "APIServer": true,
+                "Container": true
+            },
+            "depth": 3,
+            "ancestors": [
+                "database",
+                "dns",
+                "hypervisor"
+            ],
+            "dependents": 0,
+            "actions": [
+                "ping",
+                "ssh",
+                "status",
+                "console",
+                "logs",
+                "health"
+            ],
+            "commands": {
+                "ping": "ping -c 3 10.0.1.30",
+                "ssh": "ssh app@10.0.1.30",
+                "status": "<provider> status api-001 on hypervisor",
+                "console": "<provider> console api-001",
+                "logs": "<provider> logs api-001",
+                "health": "curl -s http://10.0.1.30/health"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "source": "hypervisor",
+            "target": "dns"
+        },
+        {
+            "source": "dns",
+            "target": "database"
+        },
+        {
+            "source": "database",
+            "target": "api"
+        }
+    ],
+    "provider_info": {
+        "note": "Abstract provider templates. Import quicue-proxmox or quicue-docker for real commands."
+    },
+    "topology": {
+        "layer_0": [
+            "hypervisor"
+        ],
+        "layer_1": [
+            "dns"
+        ],
+        "layer_2": [
+            "database"
+        ],
+        "layer_3": [
+            "api"
+        ]
+    },
+    "roots": [
+        "hypervisor"
+    ],
+    "leaves": [
+        "api"
+    ],
+    "criticality": [
+        {
+            "name": "hypervisor",
+            "dependents": 3
+        },
+        {
+            "name": "dns",
+            "dependents": 2
+        },
+        {
+            "name": "database",
+            "dependents": 1
+        },
+        {
+            "name": "api",
+            "dependents": 0
+        }
+    ],
+    "byType": {
+        "VirtualizationPlatform": [
+            "hypervisor"
+        ],
+        "Hypervisor": [
+            "hypervisor"
+        ],
+        "DNSServer": [
+            "dns"
+        ],
+        "Container": [
+            "dns",
+            "database",
+            "api"
+        ],
+        "CriticalInfra": [
+            "dns",
+            "database"
+        ],
+        "Database": [
+            "database"
+        ],
+        "APIServer": [
+            "api"
+        ]
+    },
+    "metrics": {
+        "total": 4,
+        "maxDepth": 3,
+        "edges": 3,
+        "roots": 1,
+        "leaves": 1
+    },
+    "validation": {
+        "valid": true,
+        "issues": []
+    }
+}

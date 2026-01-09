@@ -1,0 +1,680 @@
+// Graph patterns for infrastructure dependency analysis.
+//
+// Supports string-based depends_on (portable, JSON-compatible) or
+// reference-based depends_on (CUE refs for free traversal).
+//
+// Computes: _depth, _ancestors, _path, topology, roots, leaves.
+// Assumes DAG. _path follows first parent only.
+//
+// PERFORMANCE (tested to 1000 nodes):
+// - Validation, depth, grouping: <0.5s (no transitive closure)
+// - Impact/criticality queries: 1-5s (needs _ancestors)
+// - Graph shape matters: wide trees (depth~10) are 10x faster than linear chains
+// - Use struct field presence ({key: true}) over list.Contains for O(1) vs O(n)
+
+package patterns
+
+import "list"
+
+// #GraphResource - Schema for resources with computed graph properties
+// Use this when you want automatic depth, ancestors, etc.
+#GraphResource: {
+	name: string
+	"@type": {[string]: true}
+
+	// Optional fields - use generic names (providers map to platform-specific)
+	ip?:           string
+	host?:         string       // Hypervisor/node (Proxmox node, Docker host, K8s node)
+	container_id?: int | string // Container identifier
+	vm_id?:        int | string // VM identifier
+	fqdn?:         string
+	ssh_user?:     string
+	provides?: {[string]: true}
+	tags?: {[string]: true}
+	description?: string
+
+	// Dependencies - set membership (clean unification)
+	depends_on?: {[string]: true}
+
+	// Computed: depth in dependency graph (0 = root)
+	_depth: int
+
+	// Computed: all ancestors (transitive closure)
+	_ancestors: {[string]: bool}
+
+	// Computed: path to root (via first dependency)
+	_path: [...string]
+
+	// Allow extension
+	...
+}
+
+// #InfraGraph - Convert string-based resources to ref-based graph
+//
+// Usage:
+//   _raw: { "dns": {name: "dns", depends_on: {"pve": true}} }
+//   infra: #InfraGraph & {Input: _raw}
+//   // Now: infra.resources.dns._depth, infra.resources.dns._ancestors, etc.
+//
+#InfraGraph: {
+	// Input: string-based resources (portable, can come from JSON)
+	Input: [string]: {
+		name: string
+		"@type": {[string]: true}
+		depends_on?: {[string]: true}
+		...
+	}
+
+	// Validation: all dependency references must exist in Input
+	_inputNames: {for n, _ in Input {(n): true}}
+	_missingDepsNested: [
+		for rname, r in Input if r.depends_on != _|_ {
+			[for dep, _ in r.depends_on if _inputNames[dep] == _|_ {
+				{resource: rname, missing: dep}
+			}]
+		},
+	]
+	_missingDeps: list.FlattenN(_missingDepsNested, 1)
+	// Expose validation status (check this before using graph)
+	valid: len(_missingDeps) == 0
+
+	// Output: ref-based resources with computed graph properties
+	resources: {
+		for rname, r in Input {
+			// Normalize depends_on: absent or empty becomes {}
+			let _deps = *r.depends_on | {}
+			let _hasDeps = len(_deps) > 0
+			// Convert struct keys to list for ordered operations
+			let _depsList = [for d, _ in _deps {d}]
+
+			(rname): r & {
+				// Depth: 0 for roots, max(parent depths) + 1 otherwise
+				_depth: [
+					if _hasDeps {list.Max([for d, _ in _deps {resources[d]._depth}]) + 1},
+					0,
+				][0]
+
+				// Ancestors: transitive closure of all dependencies.
+				// The self-reference resources[d]._ancestors works because
+				// CUE evaluates lazily and dependencies form a DAG - each
+				// resource's ancestors resolve before dependents need them.
+				_ancestors: {
+					if _hasDeps {
+						for d, _ in _deps {
+							(d): true
+							for a, _ in resources[d]._ancestors {(a): true}
+						}
+					}
+				}
+
+				// Path: route to root via FIRST parent only
+				// NOTE: For multi-parent DAGs, use _ancestors for complete closure
+				_path: [
+					if _hasDeps {list.Concat([[rname], resources[_depsList[0]]._path])},
+					[rname],
+				][0]
+			}
+		}
+	}
+
+	// Computed: topology layers
+	topology: {
+		for rname, r in resources {
+			"layer_\(r._depth)": (rname): true
+		}
+	}
+
+	// Computed: root nodes (no dependencies)
+	roots: [for rname, r in resources if r._depth == 0 {rname}]
+
+	// Computed: leaf nodes (nothing depends on them)
+	_hasDependents: {
+		for _, r in resources if r.depends_on != _|_ {
+			for d, _ in r.depends_on {(d): true}
+		}
+	}
+	leaves: [for rname, _ in resources if _hasDependents[rname] == _|_ {rname}]
+
+	// Pre-computed dependents: inverse of _ancestors for O(1) impact lookups
+	// Instead of computing via pattern instantiation (O(n³)), pre-compute once (O(n²))
+	dependents: {
+		for t, _ in resources {
+			(t): [for n, r in resources if r._ancestors[t] != _|_ {n}]
+		}
+	}
+}
+
+// #ImpactQuery - Find all resources affected if target goes down
+//
+// Usage:
+//   impact: #ImpactQuery & {Graph: infra, Target: "dns-primary"}
+//   // impact.affected = ["git-server", "web-app", ...]
+//
+#ImpactQuery: {
+	Graph:  #InfraGraph
+	Target: string
+
+	affected: [
+		for rname, r in Graph.resources
+		if r._ancestors[Target] != _|_ {rname},
+	]
+
+	affected_count: len(affected)
+}
+
+// #DependencyChain - Get full dependency chain for a resource
+//
+// Usage:
+//   chain: #DependencyChain & {Graph: infra, Target: "frontend"}
+//   // chain.path = ["frontend", "web-app", "db", "pve-node"]
+//
+#DependencyChain: {
+	Graph:  #InfraGraph
+	Target: string
+
+	path:  Graph.resources[Target]._path
+	depth: Graph.resources[Target]._depth
+	ancestors: [for a, _ in Graph.resources[Target]._ancestors {a}]
+}
+
+// #GroupByType - Group resources by @type
+//
+// Usage:
+//   byType: #GroupByType & {Graph: infra}
+//   // byType.groups.DNSServer = ["dns-primary", "dns-secondary"]
+//
+#GroupByType: {
+	Graph: #InfraGraph
+
+	// Build groups using struct accumulation (avoids empty entries from nested for)
+	_byType: {
+		for rname, r in Graph.resources {
+			for t, _ in r["@type"] {
+				(t): (rname): true
+			}
+		}
+	}
+
+	groups: {
+		for typeName, members in _byType {
+			(typeName): [for m, _ in members {m}]
+		}
+	}
+
+	counts: {
+		for typeName, members in groups {
+			(typeName): len(members)
+		}
+	}
+}
+
+// #CriticalityRank - Rank resources by how many things depend on them
+//
+// Usage:
+//   crit: #CriticalityRank & {Graph: infra}
+//   // crit.ranked = [{name: "pve-node", dependents: 8}, ...]
+//
+#CriticalityRank: {
+	Graph: #InfraGraph
+
+	ranked: [
+		for rname, _ in Graph.resources {
+			name: rname
+			dependents: len([
+				for _, r in Graph.resources
+				if r._ancestors[rname] != _|_ {r.name},
+			])
+		},
+	]
+}
+
+// #ImmediateDependents - Find resources that directly depend on target
+//
+// Usage:
+//   deps: #ImmediateDependents & {Graph: infra, Target: "dns"}
+//   // deps.dependents = ["proxy", "git"] (only direct, not transitive)
+//
+#ImmediateDependents: {
+	Graph:  #InfraGraph
+	Target: string
+
+	dependents: [
+		for rname, r in Graph.resources
+		if r.depends_on != _|_
+		if r.depends_on[Target] != _|_ {rname},
+	]
+
+	count: len(dependents)
+}
+
+// #GraphMetrics - Summary statistics for the graph
+//
+// Usage:
+//   metrics: #GraphMetrics & {Graph: infra}
+//   // metrics.total_resources, metrics.max_depth, etc.
+//
+#GraphMetrics: {
+	Graph: #InfraGraph
+
+	total_resources: len(Graph.resources)
+	root_count:      len(Graph.roots)
+	leaf_count:      len(Graph.leaves)
+	_depths: [for _, r in Graph.resources {r._depth}]
+	// Guard: handle empty graph (no resources)
+	max_depth: *0 | int
+	if len(_depths) > 0 {
+		max_depth: list.Max(_depths)
+	}
+	total_edges: len([
+		for _, r in Graph.resources {
+			let _deps = *r.depends_on | {}
+			for _, _ in _deps {1}
+		},
+	])
+}
+
+// #ExportGraph - Export graph with clean IDs for external consumption
+//
+// Usage:
+//   export: #ExportGraph & {Graph: infra}
+//   // export.resources = [{name: "dns", depends_on: {"pve": true}, ...}, ...]
+//
+#ExportGraph: {
+	Graph: #InfraGraph
+
+	// Export resources as flat list with string references (no CUE refs)
+	resources: [
+		for rname, r in Graph.resources {
+			name:    rname
+			"@type": r["@type"]
+			if r.ip != _|_ {ip: r.ip}
+			if r.host != _|_ {host: r.host}
+			if r.depends_on != _|_ {depends_on: r.depends_on}
+			depth: r._depth
+			ancestors: [for a, _ in r._ancestors {a}]
+		},
+	]
+
+	// Compute max_depth from exported resources (avoids hidden field access issues)
+	_depths: [for r in resources {r.depth}]
+
+	// Summary metrics
+	summary: {
+		total:  len(resources)
+		roots:  Graph.roots
+		leaves: Graph.leaves
+		// Guard: handle empty graph
+		max_depth: *0 | int
+		if len(_depths) > 0 {
+			max_depth: list.Max(_depths)
+		}
+	}
+}
+
+// #ValidateGraph - Validate graph structure and return issues
+//
+// Usage:
+//   validate: #ValidateGraph & {Input: myResources}
+//   // validate.valid == true if no issues
+//   // validate.issues contains any problems found
+//
+#ValidateGraph: {
+	Input: [string]: {
+		name: string
+		"@type": {[string]: true}
+		depends_on?: {[string]: true}
+		...
+	}
+
+	_names: {for n, _ in Input {(n): true}}
+
+	// Check for missing dependency references
+	_missingDeps: [
+		for rname, r in Input
+		if r.depends_on != _|_
+		for dep, _ in r.depends_on
+		if _names[dep] == _|_ {
+			resource: rname
+			missing:  dep
+		},
+	]
+
+	// Check for self-references
+	_selfRefs: [
+		for rname, r in Input
+		if r.depends_on != _|_
+		if r.depends_on[rname] != _|_ {
+			resource: rname
+		},
+	]
+
+	// Check for empty @type (struct with no fields)
+	_emptyTypes: [
+		for rname, r in Input
+		if len([for t, _ in r["@type"] {t}]) == 0 {
+			resource: rname
+		},
+	]
+
+	issues: {
+		missing_dependencies: _missingDeps
+		self_references:      _selfRefs
+		empty_types:          _emptyTypes
+	}
+
+	valid: len(_missingDeps) == 0 && len(_selfRefs) == 0 && len(_emptyTypes) == 0
+}
+
+// #VizData - Generate visualization data for quicue.ca graph explorer
+//
+// Usage:
+//   viz: #VizData & {Graph: infra, Resources: _resources}
+//   // Export: cue export -e viz.data --out json
+//
+#VizData: {
+	Graph: #InfraGraph
+	Resources: [string]: {...}
+
+	// Compute helper patterns
+	_criticality: #CriticalityRank & {"Graph": Graph}
+	_byType: #GroupByType & {"Graph": Graph}
+	_export: #ExportGraph & {"Graph": Graph}
+
+	// Build edges from raw resources
+	_edges: list.FlattenN([
+		for rname, r in Resources if r.depends_on != _|_ {
+			[for dep, _ in r.depends_on {{source: dep, target: rname}}]
+		},
+	], 1)
+
+	// Pre-compute dependents map once (O(n²) total, not O(n³))
+	// Key optimization: struct field lookup is O(1), list.Contains is O(n)
+	_dependentsMap: {
+		for rname, _ in Graph.resources {
+			(rname): [
+				for other, r in Graph.resources
+				if r._ancestors[rname] != _|_ {other}
+			]
+		}
+	}
+
+	// Build nodes with computed properties
+	_nodes: [
+		for r in _export.resources {
+			id:         r.name
+			types:      r["@type"]
+			depth:      r.depth
+			ancestors:  r.ancestors
+			dependents: len(_dependentsMap[r.name])
+		},
+	]
+
+	// Convert topology layers to arrays
+	_topology: {
+		for layerName, members in Graph.topology {
+			(layerName): [for m, _ in members {m}]
+		}
+	}
+
+	// Format criticality for export
+	_critList: [
+		for c in _criticality.ranked {
+			name:       c.name
+			dependents: c.dependents
+		},
+	]
+
+	// The output data structure
+	data: {
+		nodes:       _nodes
+		edges:       _edges
+		topology:    _topology
+		roots:       Graph.roots
+		leaves:      Graph.leaves
+		criticality: _critList
+		byType:      _byType.groups
+		metrics: {
+			total:    len(_nodes)
+			maxDepth: _export.summary.max_depth
+			edges:    len(_edges)
+			roots:    len(Graph.roots)
+			leaves:   len(Graph.leaves)
+		}
+		validation: {
+			valid: Graph.valid
+			issues: []
+		}
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPERATIONAL PATTERNS
+// These patterns enable deployment orchestration, health tracking, and
+// change management based on the dependency graph.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// #HealthStatus - Propagate health through the graph
+//
+// If a resource is "down", all its dependents become "degraded".
+// Health flows upward: roots can be healthy/down, dependents inherit degraded status.
+//
+// Usage:
+//   health: #HealthStatus & {
+//       Graph: infra
+//       Status: {"dns": "down", "db": "healthy"}  // known statuses
+//   }
+//   // health.propagated.web = "degraded" (depends on dns)
+//
+#HealthStatus: {
+	Graph: #InfraGraph
+	Status: [string]: "healthy" | "degraded" | "down"
+
+	// Resources explicitly marked as down
+	_down: {for name, s in Status if s == "down" {(name): true}}
+
+	// Propagate: if any ancestor is down, resource is degraded
+	propagated: {
+		for rname, r in Graph.resources {
+			(rname): *"healthy" | "degraded" | "down"
+			if Status[rname] != _|_ {
+				(rname): Status[rname]
+			}
+			if Status[rname] == _|_ {
+				// Check if any ancestor is down
+				let hasDownAncestor = len([for a, _ in r._ancestors if _down[a] != _|_ {a}]) > 0
+				if hasDownAncestor {
+					(rname): "degraded"
+				}
+			}
+		}
+	}
+
+	// Summary counts
+	summary: {
+		healthy: len([for _, s in propagated if s == "healthy" {1}])
+		degraded: len([for _, s in propagated if s == "degraded" {1}])
+		down: len([for _, s in propagated if s == "down" {1}])
+	}
+}
+
+// #BlastRadius - Analyze impact of a change before making it
+//
+// Shows what resources are affected, in what order to rollback,
+// and what can safely be taken down together.
+//
+// Usage:
+//   blast: #BlastRadius & {Graph: infra, Target: "dns"}
+//   // blast.affected = ["proxy", "web", "api"]
+//   // blast.rollback_order = ["web", "api", "proxy", "dns"]  // leaves first
+//   // blast.safe_peers = ["monitoring"]  // same layer, not affected
+//
+#BlastRadius: {
+	Graph:  #InfraGraph
+	Target: string
+
+	// All resources that depend on target (transitively)
+	_impact: #ImpactQuery & {"Graph": Graph, "Target": Target}
+	affected: _impact.affected
+
+	// Target's depth for layer analysis
+	_targetDepth: Graph.resources[Target]._depth
+
+	// Rollback order: affected resources sorted by depth (deepest first), then target
+	_affectedWithDepth: [
+		for rname in affected {
+			name:  rname
+			depth: Graph.resources[rname]._depth
+		},
+	]
+	_sortedAffected: list.Sort(_affectedWithDepth, {x: {}, y: {}, less: x.depth > y.depth})
+	rollback_order: list.Concat([[for r in _sortedAffected {r.name}], [Target]])
+
+	// Startup order: reverse of rollback (target first, then dependents by layer)
+	startup_order: list.Reverse(rollback_order)
+
+	// Safe peers: resources at same layer that aren't affected
+	_layerKey: "layer_\(_targetDepth)"
+	_sameLayer: [for name, _ in Graph.topology[_layerKey] {name}]
+	_affectedSet: {for a in affected {(a): true}}
+	safe_peers: [for name in _sameLayer if name != Target && _affectedSet[name] == _|_ {name}]
+
+	// Summary
+	summary: {
+		target:          Target
+		affected_count:  len(affected)
+		rollback_steps:  len(rollback_order)
+		safe_peer_count: len(safe_peers)
+	}
+}
+
+// #DeploymentPlan - Generate layer-by-layer deployment sequence
+//
+// Converts topology into actionable deployment steps with explicit
+// layer boundaries for gating/approval.
+//
+// Usage:
+//   deploy: #DeploymentPlan & {Graph: infra}
+//   // deploy.layers = [
+//   //   {layer: 0, resources: ["pve"], gate: "Layer 0 complete"},
+//   //   {layer: 1, resources: ["dns", "auth"], gate: "Layer 1 complete"},
+//   //   ...
+//   // ]
+//
+#DeploymentPlan: {
+	Graph: #InfraGraph
+
+	_metrics: #GraphMetrics & {"Graph": Graph}
+	_maxDepth: _metrics.max_depth
+
+	// Build ordered layers
+	layers: [
+		for d in list.Range(0, _maxDepth+1, 1) {
+			layer: d
+			resources: [
+				for rname, r in Graph.resources
+				if r._depth == d {rname},
+			]
+			gate: "Layer \(d) complete - ready for layer \(d+1)"
+		},
+	]
+
+	// Flatten for simple iteration
+	startup_sequence: list.FlattenN([for l in layers {l.resources}], 1)
+	shutdown_sequence: list.Reverse(startup_sequence)
+
+	// Summary
+	summary: {
+		total_layers:    len(layers)
+		total_resources: len(startup_sequence)
+		gates_required:  len(layers) - 1 // No gate after last layer
+	}
+}
+
+// #RollbackPlan - Generate rollback sequence when deployment fails
+//
+// Given a failed layer, generates the sequence to safely rollback
+// all affected resources in reverse dependency order.
+//
+// Usage:
+//   rollback: #RollbackPlan & {Graph: infra, FailedAt: 2}
+//   // rollback.sequence = ["web", "api", "proxy"]  // layer 2+ in reverse
+//
+#RollbackPlan: {
+	Graph:    #InfraGraph
+	FailedAt: int // Layer number where failure occurred
+
+	_metrics: #GraphMetrics & {"Graph": Graph}
+	_maxDepth: _metrics.max_depth
+
+	// Resources at or above the failed layer (need rollback)
+	_needsRollback: [
+		for rname, r in Graph.resources
+		if r._depth >= FailedAt {
+			name:  rname
+			depth: r._depth
+		},
+	]
+
+	// Sort by depth descending (deepest first = leaves first)
+	_sorted: list.Sort(_needsRollback, {x: {}, y: {}, less: x.depth > y.depth})
+	sequence: [for r in _sorted {r.name}]
+
+	// Resources that are safe (below failed layer)
+	safe: [
+		for rname, r in Graph.resources
+		if r._depth < FailedAt {rname},
+	]
+
+	summary: {
+		failed_at:      FailedAt
+		rollback_count: len(sequence)
+		safe_count:     len(safe)
+	}
+}
+
+// #SinglePointsOfFailure - Find resources that are critical with no redundancy
+//
+// A SPOF is a resource where:
+// - Something depends on it (dependents > 0)
+// - No peer of same type exists at same layer
+//
+// Usage:
+//   spof: #SinglePointsOfFailure & {Graph: infra}
+//   // spof.risks = [{name: "dns", dependents: 5, type: "DNSServer"}, ...]
+//
+#SinglePointsOfFailure: {
+	Graph: #InfraGraph
+
+	_crit: #CriticalityRank & {"Graph": Graph}
+	_byType: #GroupByType & {"Graph": Graph}
+
+	// Find resources with dependents
+	_withDependents: [for c in _crit.ranked if c.dependents > 0 {c}]
+
+	// Check each for redundancy (same type, same layer)
+	risks: [
+		for c in _withDependents {
+			let _r = Graph.resources[c.name]
+			let _types = _r["@type"]
+			let _depth = _r._depth
+
+			// Check if any type has a peer at same depth
+			let _hasPeer = len([
+				for t, _ in _types
+				for peer in _byType.groups[t]
+				if peer != c.name && Graph.resources[peer]._depth == _depth {peer},
+			]) > 0
+			if !_hasPeer {
+				name:       c.name
+				dependents: c.dependents
+				types:      _types
+				depth:      _depth
+			}
+		},
+	]
+
+	summary: {
+		spof_count:      len(risks)
+		total_with_deps: len(_withDependents)
+	}
+}
