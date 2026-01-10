@@ -20,3 +20,7 @@ quicue-cab/
 experiments/
 explorations/
 tmp/
+
+# Symlinks to sibling repos
+ckan
+infra
