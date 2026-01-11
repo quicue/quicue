@@ -52,6 +52,18 @@ _resources: {
 		ssh_user: "root"
 		provides: {compute: true, storage: true}
 	}
+
+	// Demo: new resource to show graph growth
+	"ci-runner": {
+		"@id": "https://infra.example.com/resources/ci-runner"
+		"@type": {CIRunner: true, LXCContainer: true}
+		name:         "ci-runner"
+		ip:           "10.0.1.30"
+		host:         "pve-node-1"
+		container_id: 300
+		depends_on: {"dns-primary": true, "git-server": true}
+		provides: {ci: true}
+	}
 }
 
 // JSON-LD document with embedded context
