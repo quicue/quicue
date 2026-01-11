@@ -23,3 +23,6 @@ tmp/
 
 # Generated data exports
 docs/data/
+
+# Symlinks to sibling repos
+adapters
