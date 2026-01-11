@@ -20,3 +20,6 @@ quicue-cab/
 experiments/
 explorations/
 tmp/
+
+# Generated data exports
+docs/data/
