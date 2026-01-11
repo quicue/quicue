@@ -78,7 +78,58 @@ Resources have semantic types. Types can grant actions:
 
 The pattern: define what actions each type grants, let CUE unify them with resource fields. See [type-composition](examples/type-composition/) and [3-layer](examples/3-layer/).
 
-## Quick Start
+## Getting Started
+
+### 1. Install CUE
+
+```bash
+# macOS
+brew install cue-lang/tap/cue
+
+# Linux (or download from https://cuelang.org/docs/introduction/installation/)
+curl -sSL https://cuelang.org/go/cmd/cue@latest | go install
+```
+
+### 2. Create a New Project
+
+```bash
+mkdir my-infra && cd my-infra
+cue mod init mycompany.com/infra
+```
+
+### 3. Add quicue as a Dependency
+
+```cue
+// cue.mod/module.cue
+module: "mycompany.com/infra"
+language: version: "v0.15.3"
+
+// For now, clone quicue locally and symlink:
+// mkdir -p cue.mod/pkg && ln -s /path/to/quicue cue.mod/pkg/quicue.ca
+```
+
+### 4. Define Your Infrastructure
+
+```cue
+// infra.cue
+package infra
+
+import "quicue.ca/patterns@v0"
+
+resources: {
+    "dns":   {"@type": {DNSServer: true}, ip: "10.0.1.10"}
+    "db":    {"@type": {Database: true}, depends_on: {"dns": true}, url: "postgres://10.0.1.20"}
+    "api":   {"@type": {APIServer: true}, depends_on: {"db": true}, url: "http://10.0.1.30"}
+}
+
+infra: patterns.#InfraGraph & {Input: resources}
+
+// Now query it:
+// cue eval . -e infra.topology
+// cue eval . -e '(patterns.#ImpactQuery & {Graph: infra, Target: "dns"}).affected'
+```
+
+## Quick Start (Examples)
 
 ```bash
 git clone https://github.com/quicue/quicue.git && cd quicue

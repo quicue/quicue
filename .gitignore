@@ -20,13 +20,3 @@ quicue-cab/
 experiments/
 explorations/
 tmp/
-
-# Symlinks to sibling repos
-ckan
-docker
-incus
-infra
-k3d
-moi
-proxmox
-vcf

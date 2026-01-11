@@ -95,3 +95,222 @@ package vocab
 	download?: #Action
 	...
 }
+
+// =============================================================================
+// Action Registry - Typed parameter contracts (replaces UPPERCASE convention)
+// =============================================================================
+//
+// The registry defines actions with explicit parameter binding.
+// Instead of:
+//   command: "ping \(IP)"  // IP is UPPERCASE convention
+// Use:
+//   params: { ip: {from_field: "ip"} }
+//   command_template: "ping {ip}"
+//
+// Benefits:
+//   - Explicit field binding (no convention to remember)
+//   - Type safety for parameters
+//   - Self-documenting parameter sources
+//   - Validation that required fields exist
+
+// #ActionParam - Parameter definition for actions
+#ActionParam: {
+	type:        "string" | "int" | "bool" | *"string"
+	from_field?: string // Auto-bind from resource field (e.g., "ip" → resource.ip)
+	required:    bool | *true
+}
+
+// #ActionDef - Action definition with typed parameters
+#ActionDef: {
+	name:        string
+	description: string
+	category:    "info" | "connect" | "admin" | "monitor"
+
+	// Explicit parameter contracts
+	params: {
+		[paramName=string]: #ActionParam
+	}
+
+	// Command template with {param} placeholders
+	command_template: string
+
+	// Operational metadata
+	idempotent?:  bool
+	destructive?: bool
+}
+
+// #ActionRegistry - All known actions with their contracts
+// Providers can extend this with their own implementations
+#ActionRegistry: {
+	// ========== Connectivity Actions ==========
+
+	ping: #ActionDef & {
+		name:        "Ping"
+		description: "Test network connectivity"
+		category:    "info"
+		params: {
+			ip: {type: "string", from_field: "ip"}
+		}
+		command_template: "ping -c 3 {ip}"
+		idempotent:       true
+	}
+
+	ssh: #ActionDef & {
+		name:        "SSH"
+		description: "Open SSH session"
+		category:    "connect"
+		params: {
+			ip:   {type: "string", from_field: "ip"}
+			user: {type: "string", from_field: "ssh_user", required: false}
+		}
+		command_template: "ssh {user}@{ip}"
+	}
+
+	// ========== DNS Actions ==========
+
+	check_dns: #ActionDef & {
+		name:        "Check DNS"
+		description: "Query DNS server SOA record"
+		category:    "info"
+		params: {
+			ip: {type: "string", from_field: "ip"}
+		}
+		command_template: "dig @{ip} SOA"
+		idempotent:       true
+	}
+
+	dns_zone_list: #ActionDef & {
+		name:        "List DNS Zones"
+		description: "List DNS zones via zone transfer"
+		category:    "info"
+		params: {
+			ip: {type: "string", from_field: "ip"}
+		}
+		command_template: "dig @{ip} AXFR"
+		idempotent:       true
+	}
+
+	// ========== Container Actions ==========
+
+	container_status: #ActionDef & {
+		name:        "Container Status"
+		description: "Get container status"
+		category:    "info"
+		params: {
+			host:         {type: "string", from_field: "host"}
+			container_id: {type: "int", from_field: "container_id"}
+		}
+		command_template: "pct status {container_id}" // Provider overrides
+		idempotent:       true
+	}
+
+	container_console: #ActionDef & {
+		name:        "Container Console"
+		description: "Open container console"
+		category:    "connect"
+		params: {
+			host:         {type: "string", from_field: "host"}
+			container_id: {type: "int", from_field: "container_id"}
+		}
+		command_template: "pct enter {container_id}"
+	}
+
+	container_logs: #ActionDef & {
+		name:        "Container Logs"
+		description: "View container logs"
+		category:    "info"
+		params: {
+			host:         {type: "string", from_field: "host"}
+			container_id: {type: "int", from_field: "container_id"}
+		}
+		command_template: "pct exec {container_id} -- journalctl -n 100"
+		idempotent:       true
+	}
+
+	// ========== Hypervisor Actions ==========
+
+	list_vms: #ActionDef & {
+		name:        "List VMs"
+		description: "List virtual machines on node"
+		category:    "info"
+		params: {
+			ip:   {type: "string", from_field: "ip"}
+			user: {type: "string", from_field: "ssh_user"}
+		}
+		command_template: "ssh {user}@{ip} 'qm list'"
+		idempotent:       true
+	}
+
+	list_containers: #ActionDef & {
+		name:        "List Containers"
+		description: "List containers on node"
+		category:    "info"
+		params: {
+			ip:   {type: "string", from_field: "ip"}
+			user: {type: "string", from_field: "ssh_user"}
+		}
+		command_template: "ssh {user}@{ip} 'pct list'"
+		idempotent:       true
+	}
+
+	node_status: #ActionDef & {
+		name:        "Node Status"
+		description: "Get hypervisor node status"
+		category:    "info"
+		params: {
+			ip:   {type: "string", from_field: "ip"}
+			user: {type: "string", from_field: "ssh_user"}
+		}
+		command_template: "ssh {user}@{ip} 'pvesh get /nodes/localhost/status'"
+		idempotent:       true
+	}
+
+	// ========== Proxy Actions ==========
+
+	proxy_status: #ActionDef & {
+		name:        "Proxy Status"
+		description: "Check reverse proxy health"
+		category:    "info"
+		params: {
+			ip: {type: "string", from_field: "ip"}
+		}
+		command_template: "curl -sf http://{ip}/health"
+		idempotent:       true
+	}
+
+	proxy_routes: #ActionDef & {
+		name:        "Proxy Routes"
+		description: "List proxy routes"
+		category:    "info"
+		params: {
+			ip: {type: "string", from_field: "ip"}
+		}
+		command_template: "curl -sf http://{ip}/api/routes"
+		idempotent:       true
+	}
+
+	// ========== Critical Infrastructure Actions ==========
+
+	alert_status: #ActionDef & {
+		name:        "Alert Status"
+		description: "Check alerting system status"
+		category:    "monitor"
+		params: {
+			ip: {type: "string", from_field: "ip"}
+		}
+		command_template: "curl -sf http://{ip}:9093/api/v1/alerts"
+		idempotent:       true
+	}
+
+	backup_status: #ActionDef & {
+		name:        "Backup Status"
+		description: "Check backup status"
+		category:    "monitor"
+		params: {}
+		command_template: "echo 'Backup status check'"
+		idempotent:       true
+	}
+
+	// Allow provider extensions
+	...
+}
