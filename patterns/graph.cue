@@ -95,14 +95,14 @@ import "list"
 				][0]
 
 				// Ancestors: transitive closure of all dependencies.
-				// The self-reference resources[d]._ancestors works because
-				// CUE evaluates lazily and dependencies form a DAG - each
-				// resource's ancestors resolve before dependents need them.
+				// Uses CUE unification for fixpoint computation (rogpeppe pattern).
+				// [_]: true declares shape, then direct unification merges ancestors.
 				_ancestors: {
+					[_]: true
 					if _hasDeps {
 						for d, _ in _deps {
 							(d): true
-							for a, _ in resources[d]._ancestors {(a): true}
+							resources[d]._ancestors
 						}
 					}
 				}
