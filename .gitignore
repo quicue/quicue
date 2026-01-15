@@ -26,3 +26,6 @@ docs/data/
 
 # Symlinks to sibling repos
 adapters
+
+# Hookify local rules (not committed)
+.claude/*.local.md
