@@ -14,12 +14,22 @@ fi
 DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
        cue export "$PATH_ARG" -e '_viz.data' --out json)
 
-TOTAL=$(echo "$DATA" | jq '.metrics.total')
+if [ -z "$DATA" ] || [ "$DATA" = "null" ]; then
+    echo "Error: Could not load infrastructure data from $PATH_ARG" >&2
+    exit 1
+fi
+
+TOTAL=$(echo "$DATA" | jq '.metrics.total // 0')
+
+if [ "$TOTAL" -eq 0 ]; then
+    echo "Error: No resources found in infrastructure graph" >&2
+    exit 1
+fi
 
 # Find dependents of target
 AFFECTED=$(echo "$DATA" | jq -r --arg t "$TARGET" '
     .nodes[] | select(.ancestors | index($t)) | .name
-' | sort)
+' 2>/dev/null | sort)
 
 AFFECTED_COUNT=$(echo "$AFFECTED" | grep -c . || echo 0)
 PCT=$((AFFECTED_COUNT * 100 / TOTAL))

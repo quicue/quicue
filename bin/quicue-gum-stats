@@ -8,11 +8,16 @@ PATH_ARG="${1:-.}"
 DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
        cue export "$PATH_ARG" -e '_viz.data' --out json)
 
-TOTAL=$(echo "$DATA" | jq '.metrics.total')
-MAX_DEPTH=$(echo "$DATA" | jq '.metrics.maxDepth')
-ROOTS=$(echo "$DATA" | jq '.metrics.roots')
-LEAVES=$(echo "$DATA" | jq '.metrics.leaves')
-EDGES=$(echo "$DATA" | jq '.metrics.edges')
+if [ -z "$DATA" ] || [ "$DATA" = "null" ]; then
+    echo "Error: Could not load infrastructure data from $PATH_ARG" >&2
+    exit 1
+fi
+
+TOTAL=$(echo "$DATA" | jq '.metrics.total // 0')
+MAX_DEPTH=$(echo "$DATA" | jq '.metrics.maxDepth // 0')
+ROOTS=$(echo "$DATA" | jq '.metrics.roots // 0')
+LEAVES=$(echo "$DATA" | jq '.metrics.leaves // 0')
+EDGES=$(echo "$DATA" | jq '.metrics.edges // 0')
 
 # Header
 gum style --border double --padding "1 2" --border-foreground 99 \

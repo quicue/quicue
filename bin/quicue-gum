@@ -28,7 +28,7 @@ case "${1:-help}" in
             "  impact <target> [path] Impact analysis"
         ;;
     *)
-        echo "Unknown command: $1"
+        echo "Unknown command: $1" >&2
         exit 1
         ;;
 esac
