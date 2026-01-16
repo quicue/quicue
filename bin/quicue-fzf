@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# quicue-fzf - Fuzzy finder for infrastructure resources
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PATH_ARG="${1:-.}"
+
+# Check dependencies
+for cmd in fzf jq bat; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "$cmd is required"
+        exit 1
+    fi
+done
+
+# Export path for preview script
+export QUICUE_PATH="$PATH_ARG"
+export QUICUE_SCRIPT_DIR="$SCRIPT_DIR"
+
+# Get data and format for fzf
+DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
+       cue export "$PATH_ARG" -e '_viz.data' --out json)
+
+if [ -z "$DATA" ] || [ "$DATA" = "null" ]; then
+    echo "Error: Could not load infrastructure data from $PATH_ARG" >&2
+    exit 1
+fi
+
+TOTAL=$(echo "$DATA" | jq '.metrics.total // 0')
+
+if [ "$TOTAL" -eq 0 ]; then
+    echo "Error: No resources found in infrastructure graph" >&2
+    exit 1
+fi
+
+# Format: name [types] depth=N dependents=M
+echo "$DATA" | jq -r '.nodes[] | "\(.name)\t[\(.types | join(", "))]\tdepth=\(.depth)\tdependents=\(.dependents)"' | \
+    column -t -s $'\t' | \
+    fzf \
+        --ansi \
+        --header "quicue resources - Enter to select, Ctrl-I for impact" \
+        --preview "$SCRIPT_DIR/quicue-fzf-preview {1}" \
+        --preview-window "right:50%:wrap" \
+        --bind "ctrl-i:execute($SCRIPT_DIR/quicue-gum impact {1} $PATH_ARG)+abort" \
+        --bind "enter:execute(echo {1})+abort"

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# quicue-fzf-preview - Preview pane for fzf
+set -e
+
+RESOURCE="$1"
+PATH_ARG="${QUICUE_PATH:-.}"
+
+# Get full resource data
+DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
+       cue export "$PATH_ARG" -e '_viz.data' --out json)
+
+if [ -z "$DATA" ] || [ "$DATA" = "null" ]; then
+    echo "Error: Could not load infrastructure data from $PATH_ARG"
+    exit 0
+fi
+
+# Extract this resource
+RESOURCE_DATA=$(echo "$DATA" | jq --arg r "$RESOURCE" '.nodes[] | select(.name == $r)')
+
+if [ -z "$RESOURCE_DATA" ] || [ "$RESOURCE_DATA" = "null" ]; then
+    echo "Resource not found: $RESOURCE"
+    exit 0
+fi
+
+# Pretty print with bat for colors
+echo "$RESOURCE_DATA" | jq '.' | bat --style=plain --language=json --color=always
+
+echo ""
+echo "─────────────────────────────"
+echo ""
+
+# Show ancestors
+ANCESTORS=$(echo "$RESOURCE_DATA" | jq -r '.ancestors | join(", ")')
+if [ -n "$ANCESTORS" ] && [ "$ANCESTORS" != "" ]; then
+    echo "Ancestors: $ANCESTORS"
+else
+    echo "Ancestors: (none - root resource)"
+fi
+
+echo ""
+
+# Show dependents
+DEPENDENTS=$(echo "$DATA" | jq -r --arg r "$RESOURCE" '[.nodes[] | select(.ancestors | index($r)) | .name] | join(", ")')
+if [ -n "$DEPENDENTS" ]; then
+    echo "Dependents: $DEPENDENTS"
+else
+    echo "Dependents: (none - leaf resource)"
+fi
