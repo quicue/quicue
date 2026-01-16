@@ -4826,43 +4826,47 @@ cue export ./adapters/topdesk/ -e jsonld --out json
     let demoPointer = null;
     const demoSteps = [
         {
-            text: 'Your <strong>infrastructure as a graph</strong>. Nodes are resources, edges are dependencies. Color shows criticality - redder means more things depend on it.',
+            text: '<strong>Scenario:</strong> You need to do maintenance on the DNS server. What services will be affected?',
             action: () => {
                 cy.fit(50);
             }
         },
         {
-            text: 'Click any node for details: its <strong>types</strong>, <strong>depth</strong> in the graph, and how many services depend on it.',
+            text: 'This graph shows your infrastructure. Each box is a resource. Lines show what depends on what. Let\'s find out the impact.',
             action: () => {
-                const dbNode = cy.$id('db');
-                if (dbNode.length) {
-                    dbNode.trigger('tap');
-                }
-            }
-        },
-        {
-            text: 'The key feature: <strong>Impact Mode</strong>. Click a node to see its <span class="critical">blast radius</span> - what breaks if this resource fails.',
-            action: () => {
-                document.getElementById('impact-mode').checked = true;
                 const dnsNode = cy.$id('dns');
                 if (dnsNode.length) {
-                    setTimeout(() => showImpact('dns'), 300);
+                    cy.animate({ center: { eles: dnsNode }, zoom: 1.2, duration: 500 });
                 }
             }
         },
         {
-            text: 'If <strong>dns</strong> goes down, <span class="critical">5 services fail</span>. No more guessing - you can see the cascade before it happens.',
-            action: () => { }
+            text: 'Enable <strong>Impact Mode</strong> and click <strong>dns</strong>...',
+            action: () => {
+                document.getElementById('impact-mode').checked = true;
+                setTimeout(() => {
+                    const dnsNode = cy.$id('dns');
+                    if (dnsNode.length) {
+                        showImpact('dns');
+                    }
+                }, 400);
+            }
         },
         {
-            text: 'The <strong>Analysis</strong> tab computes insights automatically: single points of failure, coupling hotspots, and graph validation.',
+            text: '<span class="critical">5 services</span> turn red. That\'s your blast radius. You now know the impact <strong>before</strong> you touch anything.',
+            action: () => {
+                cy.fit(50);
+            }
+        },
+        {
+            text: 'quicue also auto-detects risks. The <strong>Analysis</strong> tab shows single points of failure and coupling hotspots.',
             action: () => {
                 document.querySelector('nav button[data-view="analysis"]').click();
                 document.getElementById('analysis-spof').classList.add('expanded');
             }
         },
         {
-            text: 'That\'s quicue: <strong>typed dependency graphs with computable patterns</strong>. Impact analysis, topology ordering, SPOF detection - all from one source of truth.',
+            text: 'That\'s it. <strong>Know what breaks before you break it.</strong> Now explore on your own.',
             action: () => {
                 document.querySelector('nav button[data-view="graph"]').click();
                 document.getElementById('impact-mode').checked = false;
