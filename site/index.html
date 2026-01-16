@@ -4664,16 +4664,17 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             <button class="demo-start-btn" onclick="startDemoTour()">Start Demo</button>
             <div class="demo-skip" onclick="skipDemo()">or explore on your own</div>
         </div>
-        <div class="demo-narration" id="demo-narration">
-            <div class="demo-step-indicator">
-                <span id="demo-step-num">1</span> / <span id="demo-step-total">6</span>
-            </div>
-            <div class="demo-text" id="demo-text"></div>
-            <div class="demo-controls">
-                <button class="demo-btn" id="demo-prev" onclick="demoPrev()">Back</button>
-                <button class="demo-btn primary" id="demo-next" onclick="demoNext()">Next</button>
-                <button class="demo-btn" onclick="endDemo()">Skip</button>
-            </div>
+    </div>
+    <!-- Demo narration (outside overlay so clicks work) -->
+    <div class="demo-narration" id="demo-narration">
+        <div class="demo-step-indicator">
+            <span id="demo-step-num">1</span> / <span id="demo-step-total">6</span>
+        </div>
+        <div class="demo-text" id="demo-text"></div>
+        <div class="demo-controls">
+            <button class="demo-btn" id="demo-prev" onclick="demoPrev()">Back</button>
+            <button class="demo-btn primary" id="demo-next" onclick="demoNext()">Next</button>
+            <button class="demo-btn" onclick="endDemo()">Skip</button>
         </div>
     </div>
 
