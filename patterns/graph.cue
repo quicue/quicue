@@ -417,7 +417,8 @@ import "list"
 	_nodes: [
 		for r in _export.resources {
 			id:         r.name
-			types:      r["@type"]
+			name:       r.name
+			types:      [for t, _ in r["@type"] {t}]
 			depth:      r.depth
 			ancestors:  r.ancestors
 			dependents: len(_dependentsMap[r.name])
