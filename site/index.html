@@ -5175,12 +5175,12 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             example: 'operational',
             target: 'dns',
             steps: [
-                { text: '<strong>Scenario:</strong> You need to do maintenance on the DNS server. What services will be affected?' },
-                { text: 'This graph shows your infrastructure. Each box is a resource. Lines show dependencies.', zoomTo: 'dns' },
-                { text: 'Enable <strong>Impact Mode</strong> and click <strong>dns</strong>...', impact: 'dns' },
-                { text: '<span class="critical">5 services</span> turn red. That\'s your <strong>blast radius</strong> - everything that breaks if DNS goes down.' },
-                { text: 'The <strong>Analysis</strong> tab auto-detects single points of failure and coupling hotspots.', showAnalysis: true },
-                { text: '<strong>Know what breaks before you break it.</strong> Now explore on your own.' }
+                { text: 'DNS server maintenance. What gets affected?' },
+                { text: 'Each box is a resource. Lines show dependencies.', zoomTo: 'dns' },
+                { text: 'Click <strong>dns</strong> with Impact Mode on.', impact: 'dns' },
+                { text: '5 services depend on DNS.' },
+                { text: 'Analysis tab shows single points of failure.', showAnalysis: true },
+                { text: 'Explore on your own.' }
             ]
         },
         'incident-cascade': {
@@ -5188,104 +5188,104 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             example: 'incident-cascade',
             target: 'api-gateway',
             steps: [
-                { text: '<strong>P1 INCIDENT:</strong> Payment processing is down. Customers can\'t checkout.' },
-                { text: 'PagerDuty says <strong>payment-service</strong> is failing. But is that the root cause?', zoomTo: 'payment-service' },
-                { text: 'Click <strong>api-gateway</strong> - it\'s showing 50% errors and sits upstream...', impact: 'api-gateway' },
-                { text: 'The gateway affects payment AND order services. But look at <em>its</em> ancestors in the sidebar...' },
-                { text: 'Trace up: gateway depends on <strong>database, cache, auth</strong> - all degraded. They depend on <strong>dns-cluster</strong>. DNS depends on...', zoomTo: 'core-switch' },
-                { text: '<strong>core-switch</strong> - link flapping. <em>That\'s</em> the root cause. Not payment-service.', showAnalysis: true },
-                { text: '<strong>Fix the switch, fix everything.</strong> Without the graph, you\'d be debugging payment-service for hours.' }
+                { text: 'Payment processing is down.' },
+                { text: 'Alert says <strong>payment-service</strong> is failing.', zoomTo: 'payment-service' },
+                { text: 'But <strong>api-gateway</strong> upstream is at 50% errors.', impact: 'api-gateway' },
+                { text: 'Gateway affects both payment and order. Check its ancestors in the sidebar.' },
+                { text: 'Trace up: gateway <- db/cache/auth <- dns <- <strong>core-switch</strong>', zoomTo: 'core-switch' },
+                { text: 'Switch is link-flapping. That\'s the root cause.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'microservices-mesh': {
-            title: 'Service Mesh Analysis',
+            title: 'Service Mesh',
             example: 'microservices-mesh',
             target: 'api-gateway',
             steps: [
-                { text: '<strong>Scenario:</strong> Deploying a new API Gateway version. What\'s the rollback risk?' },
-                { text: 'This is your service mesh with <strong>12 microservices</strong>. The gateway is the entry point.', zoomTo: 'api-gateway' },
-                { text: 'Click <strong>api-gateway</strong> to see its blast radius...', impact: 'api-gateway' },
-                { text: '<span class="critical">10 services</span> depend on the gateway. That\'s <strong>83% of your mesh</strong>.' },
-                { text: 'The coupling analysis shows your gateway has the highest dependency count.', showAnalysis: true },
-                { text: '<strong>Blue-green deploys are essential</strong> for high-coupling services like this.' }
+                { text: 'Deploying new API Gateway. What depends on it?' },
+                { text: '12 microservices. Gateway is the entry point.', zoomTo: 'api-gateway' },
+                { text: 'Click <strong>api-gateway</strong>.', impact: 'api-gateway' },
+                { text: '10 services affected. 83% of the mesh.' },
+                { text: 'Coupling analysis in the sidebar.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'cicd-pipeline': {
-            title: 'Pipeline Dependencies',
+            title: 'Pipeline',
             example: 'cicd-pipeline',
             target: 'build-stage',
             steps: [
-                { text: '<strong>Scenario:</strong> The build server is slow. What\'s blocked?' },
-                { text: 'This is your CI/CD pipeline from git to production. <strong>6 deployment layers</strong>.', zoomTo: 'build-stage' },
-                { text: 'Click <strong>build-stage</strong> to see what depends on it...', impact: 'build-stage' },
-                { text: '<span class="critical">Everything downstream is blocked.</span> No builds = no deploys.' },
-                { text: 'The pipeline view shows the critical path. Build is a <strong>single point of failure</strong>.', showAnalysis: true },
-                { text: '<strong>Consider parallel build runners</strong> to reduce coupling.' }
+                { text: 'Build server is slow. What\'s blocked?' },
+                { text: 'Pipeline from git to production.', zoomTo: 'build-stage' },
+                { text: 'Click <strong>build-stage</strong>.', impact: 'build-stage' },
+                { text: 'Everything downstream is blocked.' },
+                { text: 'Build is a single point of failure.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'topdesk-import': {
-            title: 'CMDB Impact Analysis',
+            title: 'TopDesk CMDB',
             example: 'topdesk-import',
             target: 'erp-database',
             steps: [
-                { text: '<strong>Change Request:</strong> Database maintenance window. What SLAs are at risk?' },
-                { text: 'This data came from <strong>TopDesk CMDB</strong>. quicue computed the dependencies.', zoomTo: 'erp-database' },
-                { text: 'Click <strong>erp-database</strong> to see business impact...', impact: 'erp-database' },
-                { text: '<span class="critical">Business-critical services affected.</span> Check the SLA commitments in the sidebar.' },
-                { text: 'quicue unifies CMDB data with <strong>computed blast radius</strong> - TopDesk alone can\'t do this.', showAnalysis: true },
-                { text: '<strong>Now you can approve changes</strong> with full impact visibility.' }
+                { text: 'Database maintenance. What SLAs are affected?' },
+                { text: 'Data imported from TopDesk. Dependencies computed.', zoomTo: 'erp-database' },
+                { text: 'Click <strong>erp-database</strong>.', impact: 'erp-database' },
+                { text: 'Business services affected. SLAs in sidebar.' },
+                { text: 'SPOF analysis.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'vmware-import': {
-            title: 'VMware Infrastructure',
+            title: 'VMware vSphere',
             example: 'vmware-import',
             target: 'esxi-host-01',
             steps: [
-                { text: '<strong>Scenario:</strong> ESXi host needs patching. What VMs need live migration?' },
-                { text: 'This is your vSphere hierarchy: cluster, hosts, VMs, datastores.', zoomTo: 'esxi-host-01' },
-                { text: 'Click <strong>esxi-host-01</strong> to see hosted workloads...', impact: 'esxi-host-01' },
-                { text: '<span class="critical">Multiple VMs affected.</span> Plan your vMotion sequence.' },
-                { text: 'quicue computed this from vSphere API data. It knows the full hierarchy.', showAnalysis: true },
-                { text: '<strong>Maintenance windows are safer</strong> when you see the full picture.' }
+                { text: 'ESXi host needs patching. What VMs are on it?' },
+                { text: 'vSphere hierarchy: cluster, hosts, VMs, datastores.', zoomTo: 'esxi-host-01' },
+                { text: 'Click <strong>esxi-host-01</strong>.', impact: 'esxi-host-01' },
+                { text: 'VMs on this host.' },
+                { text: 'Full hierarchy in analysis.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'cab-datacenter': {
-            title: 'Change Advisory Board',
+            title: 'CAB Review',
             example: 'cab-datacenter',
             target: 'hypervisor-01',
             steps: [
-                { text: '<strong>CAB Review:</strong> Hypervisor firmware update submitted for approval.' },
-                { text: 'This is your datacenter. Hypervisors host VMs that run your services.', zoomTo: 'hypervisor-01' },
-                { text: 'Click <strong>hypervisor-01</strong> to see what\'s at risk...', impact: 'hypervisor-01' },
-                { text: '<span class="critical">Production VMs affected.</span> Is this change worth the risk?' },
-                { text: 'quicue helps CAB make <strong>informed decisions</strong> with real dependency data.', showAnalysis: true },
-                { text: '<strong>Approve or reject with confidence.</strong> No more guessing.' }
+                { text: 'Hypervisor firmware update. What\'s at risk?' },
+                { text: 'Datacenter layout. Hypervisors host VMs.', zoomTo: 'hypervisor-01' },
+                { text: 'Click <strong>hypervisor-01</strong>.', impact: 'hypervisor-01' },
+                { text: 'Production VMs affected.' },
+                { text: 'Impact summary.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'kubernetes-cluster': {
-            title: 'Kubernetes Blast Radius',
+            title: 'Kubernetes',
             example: 'kubernetes-cluster',
             target: 'postgres-db',
             steps: [
-                { text: '<strong>Scenario:</strong> Database pod is OOMKilled. What\'s the impact?' },
-                { text: 'This is your K8s cluster: namespaces, deployments, services, and their dependencies.', zoomTo: 'postgres-db' },
-                { text: 'Click <strong>postgres-db</strong> to see dependent services...', impact: 'postgres-db' },
-                { text: '<span class="critical">Multiple services affected.</span> Check replica counts in the sidebar.' },
-                { text: 'quicue tracks K8s dependencies that kubectl can\'t show you.', showAnalysis: true },
-                { text: '<strong>Set resource limits wisely</strong> on high-impact workloads.' }
+                { text: 'Database pod OOMKilled. What else fails?' },
+                { text: 'K8s cluster: namespaces, deployments, services.', zoomTo: 'postgres-db' },
+                { text: 'Click <strong>postgres-db</strong>.', impact: 'postgres-db' },
+                { text: 'Dependent services. Replica counts in sidebar.' },
+                { text: 'Cluster analysis.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         },
         'terraform-state': {
-            title: 'Terraform Drift Detection',
+            title: 'Terraform State',
             example: 'terraform-state',
             target: 'vpc-main',
             steps: [
-                { text: '<strong>Scenario:</strong> Planning to destroy the VPC. What else gets deleted?' },
-                { text: 'This graph is built from <strong>Terraform state</strong>. Real infrastructure, real dependencies.', zoomTo: 'vpc-main' },
-                { text: 'Click <strong>vpc-main</strong> to see cascading deletes...', impact: 'vpc-main' },
-                { text: '<span class="critical">Everything in the VPC is destroyed.</span> Terraform plan doesn\'t show this clearly.' },
-                { text: 'quicue makes implicit Terraform dependencies <strong>explicit and visible</strong>.', showAnalysis: true },
-                { text: '<strong>terraform destroy is safer</strong> when you see the blast radius.' }
+                { text: 'Destroying VPC. What else gets deleted?' },
+                { text: 'Graph from Terraform state.', zoomTo: 'vpc-main' },
+                { text: 'Click <strong>vpc-main</strong>.', impact: 'vpc-main' },
+                { text: 'Everything in the VPC.' },
+                { text: 'Dependency chain.', showAnalysis: true },
+                { text: 'Done.' }
             ]
         }
     };
