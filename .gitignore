@@ -7,8 +7,6 @@
 
 # Local development
 .dev/
-.claude/
-CLAUDE.md
 task_plan.md
 notes.md
 quicue-cab/
@@ -26,6 +24,3 @@ docs/data/
 
 # Symlinks to sibling repos
 adapters
-
-# Hookify local rules (not committed)
-.claude/*.local.md
