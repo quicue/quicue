@@ -4826,28 +4826,22 @@ cue export ./adapters/topdesk/ -e jsonld --out json
     let demoPointer = null;
     const demoSteps = [
         {
-            text: 'This is your <strong>infrastructure graph</strong>. Each node is a resource, each edge is a dependency. Color = criticality (redder = more things depend on it).',
+            text: 'Your <strong>infrastructure as a graph</strong>. Nodes are resources, edges are dependencies. Color shows criticality - redder means more things depend on it.',
             action: () => {
                 cy.fit(50);
             }
         },
         {
-            text: 'See the metrics bar: <span class="highlight">$915/mo</span> total cost, and <span class="warning">2 degraded</span> services. Cost and health are computed from your resource definitions.',
+            text: 'Click any node for details: its <strong>types</strong>, <strong>depth</strong> in the graph, and how many services depend on it.',
             action: () => {
-                // Just highlight the metrics bar
-            }
-        },
-        {
-            text: 'Click any node to see details. Here\'s <strong>api</strong> - it has status <span class="warning">degraded</span> with 2.3% error rate and costs <span class="highlight">$120/mo</span>.',
-            action: () => {
-                const apiNode = cy.$id('api');
-                if (apiNode.length) {
-                    apiNode.trigger('tap');
+                const dbNode = cy.$id('db');
+                if (dbNode.length) {
+                    dbNode.trigger('tap');
                 }
             }
         },
         {
-            text: 'Now the power move: <strong>Impact Mode</strong>. When enabled, clicking a node shows its <span class="critical">blast radius</span> - everything that would fail if it went down.',
+            text: 'The key feature: <strong>Impact Mode</strong>. Click a node to see its <span class="critical">blast radius</span> - what breaks if this resource fails.',
             action: () => {
                 document.getElementById('impact-mode').checked = true;
                 const dnsNode = cy.$id('dns');
@@ -4857,24 +4851,18 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             }
         },
         {
-            text: '<span class="critical">5 services</span> depend on dns. If it fails, api, web, worker, db, and cache all go down. This is why we track dependencies.',
+            text: 'If <strong>dns</strong> goes down, <span class="critical">5 services fail</span>. No more guessing - you can see the cascade before it happens.',
             action: () => { }
         },
         {
-            text: 'Check the <strong>Analysis</strong> tab for automated insights: SPOFs (single points of failure), coupling hotspots, and validation. All computed from your graph.',
+            text: 'The <strong>Analysis</strong> tab computes insights automatically: single points of failure, coupling hotspots, and graph validation.',
             action: () => {
                 document.querySelector('nav button[data-view="analysis"]').click();
                 document.getElementById('analysis-spof').classList.add('expanded');
             }
         },
         {
-            text: 'The <strong>History</strong> tab tracks changes over time. See who changed what, when. Great for audits and debugging "what changed?"',
-            action: () => {
-                document.querySelector('nav button[data-view="history"]').click();
-            }
-        },
-        {
-            text: 'That\'s quicue. <strong>Dependency graphs that compute</strong>: impact analysis, cost aggregation, health monitoring, change tracking. Now explore on your own!',
+            text: 'That\'s quicue: <strong>typed dependency graphs with computable patterns</strong>. Impact analysis, topology ordering, SPOF detection - all from one source of truth.',
             action: () => {
                 document.querySelector('nav button[data-view="graph"]').click();
                 document.getElementById('impact-mode').checked = false;
