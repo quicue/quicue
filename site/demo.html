@@ -161,6 +161,92 @@
             font-size: 0.85rem;
         }
         .exit-link:hover { color: #c9d1d9; }
+        #example-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-left: auto;
+        }
+        #example-select:hover { background: #30363d; }
+        /* Simulated node style */
+        .simulated-node {
+            border-style: dashed !important;
+            opacity: 0.85;
+        }
+        /* What-if form */
+        .whatif-form { margin: 1rem 0; }
+        .whatif-form label {
+            display: block;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-bottom: 0.25rem;
+            margin-top: 0.75rem;
+        }
+        .whatif-form input,
+        .whatif-form select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #c9d1d9;
+            font-size: 0.9rem;
+        }
+        .whatif-form input:focus,
+        .whatif-form select:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .whatif-form select[multiple] {
+            height: auto;
+            min-height: 80px;
+        }
+        .type-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.25rem;
+        }
+        .type-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.8rem;
+            background: #21262d;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .type-checkbox:hover { background: #30363d; }
+        .type-checkbox input { width: auto; margin: 0; }
+        .btn-simulate {
+            width: 100%;
+            padding: 0.75rem;
+            background: #238636;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        .btn-simulate:hover { background: #2ea043; }
+        .btn-simulate:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+        .validation-result {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        .validation-result.success { background: #23863633; border: 1px solid #238636; }
+        .validation-result.error { background: #da363333; border: 1px solid #da3633; }
+        .validation-result ul { margin: 0.5rem 0 0 1rem; padding: 0; }
+        .validation-result li { margin-bottom: 0.25rem; }
     </style>
 </head>
 <body>
@@ -170,6 +256,18 @@
             <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
         </div>
         <div class="step-counter"><span id="current-step">1</span> / <span id="total-steps">12</span></div>
+        <select id="example-select">
+            <option value="operational">Ops Stack (8 nodes)</option>
+            <option value="incident-cascade">Incident Cascade (9 nodes)</option>
+            <option value="cicd-pipeline">CI/CD Pipeline (9 nodes)</option>
+            <option value="microservices-mesh">Microservices (12 nodes)</option>
+            <option value="cab-datacenter">CAB Datacenter (7 nodes)</option>
+            <option value="topdesk-import">TopDesk CMDB (8 nodes)</option>
+            <option value="vmware-import">VMware vSphere (10 nodes)</option>
+            <option value="multi-region">Multi-Region HA (22 nodes)</option>
+            <option value="kubernetes">Kubernetes (15 nodes)</option>
+            <option value="terraform-aws">Terraform AWS (12 nodes)</option>
+        </select>
         <a href="index.html" class="exit-link">Exit to Explorer</a>
     </div>
 
@@ -187,8 +285,37 @@
     let cy = null;
     let currentStep = 0;
     let graphData = null;
+    let simulatedNode = null;
+    let currentExample = 'operational';
 
-    const demoSteps = [
+    // Dynamic step generators based on loaded data
+    function generateSteps() {
+        const nodeCount = graphData.nodes.length;
+        const edgeCount = graphData.edges.length;
+        const maxDepth = graphData.metrics?.maxDepth || Math.max(...graphData.nodes.map(n => n.depth));
+        const rootId = graphData.roots?.[0] || graphData.nodes.find(n => n.depth === 0)?.id;
+        const spofs = graphData.spof || graphData.nodes.filter(n => n.dependents > 0).slice(0, 4);
+        const coupling = graphData.coupling || graphData.nodes.filter(n => n.dependents > 2);
+
+        // Find a good target for impact analysis (high dependents, not root)
+        const impactTarget = graphData.nodes
+            .filter(n => n.dependents > 0 && n.depth > 0)
+            .sort((a, b) => b.dependents - a.dependents)[0] || graphData.nodes[1];
+
+        // Find nodes affected by the impact target
+        const affectedNodes = graphData.nodes.filter(n =>
+            n.ancestors && n.ancestors.includes(impactTarget?.id)
+        );
+
+        // Find a candidate for what-if simulation (a node that could have a replica)
+        const replicaCandidate = graphData.nodes
+            .filter(n => n.dependents > 0 && n.depth > 0 && n.depth < maxDepth)
+            .sort((a, b) => b.dependents - a.dependents)[0] || graphData.nodes[1];
+
+        // Find a long path for path finding demo
+        const leafNode = graphData.leaves?.[0] || graphData.nodes.find(n => n.dependents === 0)?.id;
+
+        return [
         {
             title: "The Problem",
             content: `
@@ -203,6 +330,7 @@
                 <p>quicue fixes this.</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
                 cy.fit(50);
             }
@@ -213,13 +341,15 @@
                 <p>This is your infrastructure as a <strong>dependency graph</strong>.</p>
                 <p>Each node is a resource. Each edge means "depends on".</p>
                 <div class="info-panel">
-                    <div class="info-row"><span class="info-label">Resources</span><span class="info-value">8</span></div>
-                    <div class="info-row"><span class="info-label">Dependencies</span><span class="info-value">10</span></div>
-                    <div class="info-row"><span class="info-label">Max depth</span><span class="info-value">4 layers</span></div>
+                    <div class="info-row"><span class="info-label">Resources</span><span class="info-value">${nodeCount}</span></div>
+                    <div class="info-row"><span class="info-label">Dependencies</span><span class="info-value">${edgeCount}</span></div>
+                    <div class="info-row"><span class="info-label">Max depth</span><span class="info-value">${maxDepth} layers</span></div>
                 </div>
                 <p>The color shows <strong>criticality</strong> - redder nodes have more things depending on them.</p>
             `,
             action: () => {
+                removeSimulatedNode();
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
                 cy.fit(50);
             }
         },
@@ -227,32 +357,31 @@
             title: "Impact Analysis",
             content: `
                 <p>The core feature: <strong>blast radius analysis</strong>.</p>
-                <p>Question: "If the DNS server goes down, what breaks?"</p>
-                <p>Watch what happens when we simulate a DNS failure...</p>
+                <p>Question: "If <code>${impactTarget?.id}</code> goes down, what breaks?"</p>
+                <p>Watch what happens when we simulate a failure...</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
-                const dns = cy.$id('dns');
-                if (dns.length) {
-                    cy.animate({ center: { eles: dns }, zoom: 1.3, duration: 500 });
+                const target = cy.$id(impactTarget?.id);
+                if (target.length) {
+                    cy.animate({ center: { eles: target }, zoom: 1.3, duration: 500 });
                 }
             }
         },
         {
             title: "Blast Radius",
             content: `
-                <p><span class="critical">5 services</span> would fail if DNS goes down:</p>
+                <p><span class="critical">${affectedNodes.length} service${affectedNodes.length !== 1 ? 's' : ''}</span> would fail if <code>${impactTarget?.id}</code> goes down:</p>
                 <ul>
-                    <li><code>db</code> - can't resolve database hostname</li>
-                    <li><code>cache</code> - can't reach cache cluster</li>
-                    <li><code>api</code> - depends on db and cache</li>
-                    <li><code>web</code> - depends on api</li>
-                    <li><code>worker</code> - depends on db and cache</li>
+                    ${affectedNodes.slice(0, 5).map(n => `<li><code>${n.id}</code></li>`).join('')}
+                    ${affectedNodes.length > 5 ? `<li>...and ${affectedNodes.length - 5} more</li>` : ''}
                 </ul>
                 <p>You now know the impact <strong>before</strong> you touch anything.</p>
             `,
             action: () => {
-                showImpact('dns');
+                removeSimulatedNode();
+                showImpact(impactTarget?.id);
                 cy.fit(50);
             }
         },
@@ -261,18 +390,15 @@
             content: `
                 <p>quicue automatically detects <strong>SPOFs</strong> - resources with no redundant peer.</p>
                 <div class="info-panel">
-                    <div class="info-row"><span class="info-label">pve-node</span><span class="badge spof">SPOF</span></div>
-                    <div class="info-row"><span class="info-label">dns</span><span class="badge spof">SPOF</span></div>
-                    <div class="info-row"><span class="info-label">db</span><span class="badge spof">SPOF</span></div>
-                    <div class="info-row"><span class="info-label">cache</span><span class="badge spof">SPOF</span></div>
+                    ${spofs.slice(0, 4).map(s => `<div class="info-row"><span class="info-label">${s.name || s.id}</span><span class="badge spof">SPOF</span></div>`).join('')}
                 </div>
                 <p>A SPOF is any resource that, if it fails, has no backup at its layer.</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
-                // Highlight SPOFs
-                ['pve-node', 'dns', 'db', 'cache'].forEach(id => {
-                    cy.$id(id).addClass('impact-highlight');
+                spofs.slice(0, 4).forEach(s => {
+                    cy.$id(s.name || s.id).addClass('impact-highlight');
                 });
             }
         },
@@ -281,15 +407,18 @@
             content: `
                 <p><strong>Coupling points</strong> are resources that many others depend on.</p>
                 <div class="info-panel">
-                    <div class="info-row"><span class="info-label">pve-node</span><span class="info-value">87.5% depend on this</span></div>
-                    <div class="info-row"><span class="info-label">dns</span><span class="info-value">62.5% depend on this</span></div>
+                    ${coupling.slice(0, 3).map(c => {
+                        const pct = c.percentage || Math.round((c.dependents / (nodeCount - 1)) * 100);
+                        return `<div class="info-row"><span class="info-label">${c.name || c.id}</span><span class="info-value">${pct}% depend on this</span></div>`;
+                    }).join('')}
                 </div>
                 <p>High coupling = high risk. These deserve extra monitoring, redundancy, or careful change management.</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
-                cy.$id('pve-node').addClass('impact-source');
-                cy.$id('dns').addClass('impact-highlight');
+                if (coupling[0]) cy.$id(coupling[0].name || coupling[0].id).addClass('impact-source');
+                if (coupling[1]) cy.$id(coupling[1].name || coupling[1].id).addClass('impact-highlight');
             }
         },
         {
@@ -297,15 +426,17 @@
             content: `
                 <p>The graph computes <strong>deployment order</strong> automatically.</p>
                 <div class="info-panel">
-                    <div class="info-row"><span class="info-label">Layer 0</span><span class="info-value">pve-node (start here)</span></div>
-                    <div class="info-row"><span class="info-label">Layer 1</span><span class="info-value">dns, auth</span></div>
-                    <div class="info-row"><span class="info-label">Layer 2</span><span class="info-value">db, cache</span></div>
-                    <div class="info-row"><span class="info-label">Layer 3</span><span class="info-value">api, worker</span></div>
-                    <div class="info-row"><span class="info-label">Layer 4</span><span class="info-value">web (last)</span></div>
+                    ${Object.entries(graphData.topology || {}).slice(0, 5).map(([layer, nodes]) => {
+                        const layerNum = layer.replace('layer_', '');
+                        const nodeList = Array.isArray(nodes) ? nodes.slice(0, 3).join(', ') : nodes;
+                        const suffix = Array.isArray(nodes) && nodes.length > 3 ? '...' : '';
+                        return `<div class="info-row"><span class="info-label">Layer ${layerNum}</span><span class="info-value">${nodeList}${suffix}</span></div>`;
+                    }).join('')}
                 </div>
                 <p>Startup order: layer 0 first. Shutdown: reverse. No more guessing.</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
                 cy.fit(50);
             }
@@ -315,58 +446,231 @@
             content: `
                 <p>Resources have <strong>types</strong> that describe what they are:</p>
                 <ul>
-                    <li><code>dns</code> is a <span class="highlight">DNSServer</span> + <span class="warning">CriticalInfra</span></li>
-                    <li><code>db</code> is a <span class="highlight">Database</span></li>
-                    <li><code>api</code> is an <span class="highlight">APIServer</span></li>
+                    ${graphData.nodes.slice(0, 3).map(n => {
+                        const types = Object.keys(n.types || {}).slice(0, 2);
+                        return `<li><code>${n.id}</code> is a <span class="highlight">${types[0] || 'Resource'}</span>${types[1] ? ` + <span class="warning">${types[1]}</span>` : ''}</li>`;
+                    }).join('')}
                 </ul>
                 <p>Types enable filtering ("show me all databases") and validation ("every CriticalInfra should have a backup").</p>
             `,
             action: () => {
-                cy.$id('dns').addClass('impact-highlight');
-                cy.$id('db').addClass('impact-highlight');
-                cy.$id('api').addClass('impact-highlight');
+                removeSimulatedNode();
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                graphData.nodes.slice(0, 3).forEach(n => {
+                    cy.$id(n.id).addClass('impact-highlight');
+                });
             }
         },
         {
             title: "What-If Simulation",
-            content: `
-                <p>Before making changes, <strong>simulate them</strong>.</p>
-                <p>"What if we add a cache replica?"</p>
-                <ul>
-                    <li>It would be at layer 2</li>
-                    <li>It would depend on dns</li>
-                    <li>It would share load with existing cache</li>
-                    <li>cache would no longer be a SPOF</li>
-                </ul>
-                <p>Validate changes before they hit production.</p>
-            `,
+            content: (() => {
+                // Collect all unique types from the graph
+                const allTypes = new Set();
+                graphData.nodes.forEach(n => {
+                    if (n.types) Object.keys(n.types).forEach(t => allTypes.add(t));
+                });
+                const typeCheckboxes = Array.from(allTypes).sort()
+                    .map(t => `<label class="type-checkbox"><input type="checkbox" value="${t}"> ${t}</label>`)
+                    .join('');
+
+                // Build dependency options
+                const depOptions = graphData.nodes
+                    .map(n => `<option value="${n.id}">${n.id}</option>`)
+                    .join('');
+
+                return `
+                    <p>Define a new resource and <strong>validate</strong> it against the graph.</p>
+                    <div class="whatif-form">
+                        <label>Resource ID</label>
+                        <input type="text" id="whatif-id" placeholder="e.g., cache-replica, db-standby">
+
+                        <label>Types</label>
+                        <div class="type-checkboxes" id="whatif-types">
+                            ${typeCheckboxes}
+                        </div>
+
+                        <label>Dependencies (Ctrl+click for multiple)</label>
+                        <select multiple id="whatif-deps">
+                            ${depOptions}
+                        </select>
+
+                        <button class="btn-simulate" id="btn-simulate">Add to Graph</button>
+                    </div>
+                    <div id="validation-result"></div>
+                `;
+            })(),
             action: () => {
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
-                cy.$id('cache').addClass('impact-highlight');
+                removeSimulatedNode();
+
+                setTimeout(() => {
+                    const btn = document.getElementById('btn-simulate');
+                    if (btn) {
+                        btn.onclick = () => {
+                            const id = document.getElementById('whatif-id').value.trim();
+                            const typeCheckboxes = document.querySelectorAll('#whatif-types input:checked');
+                            const types = Array.from(typeCheckboxes).map(cb => cb.value);
+                            const depsSelect = document.getElementById('whatif-deps');
+                            const deps = Array.from(depsSelect.selectedOptions).map(o => o.value);
+                            const resultDiv = document.getElementById('validation-result');
+
+                            // Validation
+                            const errors = [];
+
+                            if (!id) {
+                                errors.push('Resource ID is required');
+                            } else if (graphData.nodes.some(n => n.id === id)) {
+                                errors.push(`ID "${id}" already exists - each resource must have a unique identifier`);
+                            } else if (!/^[a-z0-9-]+$/.test(id)) {
+                                errors.push('ID must be lowercase letters, numbers, and hyphens only (e.g., "db-replica-01")');
+                            }
+
+                            if (errors.length > 0) {
+                                resultDiv.className = 'validation-result error';
+                                resultDiv.innerHTML = `<strong>Cannot add resource:</strong><ul>${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+                                return;
+                            }
+
+                            // Compute depth and topology placement
+                            let depth = 0;
+                            if (deps.length > 0) {
+                                const depDepths = deps.map(d => {
+                                    const node = graphData.nodes.find(n => n.id === d);
+                                    return node ? node.depth : 0;
+                                });
+                                depth = Math.max(...depDepths) + 1;
+                            }
+
+                            // Compute full ancestor chain
+                            const ancestors = new Set(deps);
+                            deps.forEach(d => {
+                                const node = graphData.nodes.find(n => n.id === d);
+                                if (node?.ancestors) node.ancestors.forEach(a => ancestors.add(a));
+                            });
+
+                            // Find nodes with matching types (potential SPOF resolution)
+                            const matchingTypeNodes = graphData.nodes.filter(n =>
+                                n.types && types.some(t => n.types[t])
+                            );
+                            const spofsWithMatchingTypes = matchingTypeNodes.filter(n => n.dependents > 0);
+
+                            // Find what would break if this new node fails (nothing yet, it has 0 dependents)
+                            // But show what it provides redundancy for
+
+                            // Get layer peers (other nodes at same depth)
+                            const layerPeers = graphData.nodes.filter(n => n.depth === depth);
+
+                            // Build the analysis HTML
+                            let html = `<div style="margin-bottom: 0.75rem;"><strong style="color: #3fb950;">Resource Valid</strong></div>`;
+
+                            // Topology section
+                            html += `<div style="margin-bottom: 0.75rem;">
+                                <div style="color: #58a6ff; font-size: 0.8rem; margin-bottom: 0.25rem;">TOPOLOGY</div>
+                                <div style="font-size: 0.9rem;"><strong>Layer ${depth}</strong> - `;
+                            if (depth === 0) {
+                                html += `This will be a <strong>root node</strong> (no dependencies). It starts first during deployment and shuts down last.</div>`;
+                            } else {
+                                const layerNames = layerPeers.slice(0, 3).map(n => n.id).join(', ');
+                                html += `alongside ${layerPeers.length > 0 ? layerNames : 'no other nodes'}${layerPeers.length > 3 ? '...' : ''}</div>`;
+                                html += `<div style="font-size: 0.85rem; color: #8b949e; margin-top: 0.25rem;">
+                                    Startup: after layer ${depth - 1} completes<br>
+                                    Shutdown: before layer ${depth - 1} begins
+                                </div>`;
+                            }
+                            html += `</div>`;
+
+                            // Dependencies section
+                            html += `<div style="margin-bottom: 0.75rem;">
+                                <div style="color: #58a6ff; font-size: 0.8rem; margin-bottom: 0.25rem;">DEPENDENCIES</div>`;
+                            if (deps.length === 0) {
+                                html += `<div style="color: #d29922; font-size: 0.9rem;">No dependencies selected - this node has no upstream requirements</div>`;
+                            } else {
+                                html += `<div style="font-size: 0.9rem;"><strong>Direct:</strong> ${deps.join(', ')}</div>`;
+                                if (ancestors.size > deps.length) {
+                                    const transitiveOnly = Array.from(ancestors).filter(a => !deps.includes(a));
+                                    html += `<div style="font-size: 0.85rem; color: #8b949e; margin-top: 0.25rem;">
+                                        <strong>Transitive:</strong> ${transitiveOnly.slice(0, 5).join(', ')}${transitiveOnly.length > 5 ? ` (+${transitiveOnly.length - 5} more)` : ''}
+                                    </div>`;
+                                }
+                                html += `<div style="font-size: 0.85rem; color: #8b949e; margin-top: 0.25rem;">
+                                    If any of these ${ancestors.size} upstream nodes fail, <code>${id}</code> will be affected
+                                </div>`;
+                            }
+                            html += `</div>`;
+
+                            // Types & Redundancy section
+                            html += `<div style="margin-bottom: 0.75rem;">
+                                <div style="color: #58a6ff; font-size: 0.8rem; margin-bottom: 0.25rem;">TYPES & REDUNDANCY</div>`;
+                            if (types.length === 0) {
+                                html += `<div style="color: #d29922; font-size: 0.9rem;">No types selected - consider adding types for filtering and validation</div>`;
+                            } else {
+                                html += `<div style="font-size: 0.9rem;"><strong>Types:</strong> ${types.join(', ')}</div>`;
+                                if (spofsWithMatchingTypes.length > 0) {
+                                    html += `<div style="font-size: 0.85rem; color: #3fb950; margin-top: 0.25rem;">
+                                        Provides redundancy for: <strong>${spofsWithMatchingTypes.map(n => n.id).join(', ')}</strong>
+                                    </div>`;
+                                    const resolvedSpofs = spofsWithMatchingTypes.filter(n => {
+                                        const sameTypeAtLayer = matchingTypeNodes.filter(m => m.depth === n.depth && m.id !== n.id);
+                                        return sameTypeAtLayer.length === 0; // Currently a SPOF
+                                    });
+                                    if (resolvedSpofs.length > 0 && depth === resolvedSpofs[0]?.depth) {
+                                        html += `<div style="font-size: 0.85rem; color: #3fb950;">
+                                            Resolves SPOF: <strong>${resolvedSpofs[0].id}</strong> will no longer be a single point of failure
+                                        </div>`;
+                                    }
+                                } else {
+                                    html += `<div style="font-size: 0.85rem; color: #8b949e; margin-top: 0.25rem;">
+                                        No existing nodes share these types
+                                    </div>`;
+                                }
+                            }
+                            html += `</div>`;
+
+                            // Impact section
+                            html += `<div>
+                                <div style="color: #58a6ff; font-size: 0.8rem; margin-bottom: 0.25rem;">BLAST RADIUS</div>
+                                <div style="font-size: 0.9rem;">If <code>${id}</code> fails: <strong>0 nodes affected</strong> (new node, nothing depends on it yet)</div>
+                            </div>`;
+
+                            // Add the simulated node
+                            removeSimulatedNode();
+                            addCustomSimulatedNode(id, types, deps, depth);
+
+                            resultDiv.className = 'validation-result success';
+                            resultDiv.innerHTML = html;
+                        };
+                    }
+                }, 100);
             }
         },
         {
             title: "Path Finding",
-            content: `
-                <p>"Why does web depend on pve-node?"</p>
-                <p>Find the <strong>dependency path</strong>:</p>
-                <div class="info-panel" style="font-family: monospace; font-size: 0.85rem;">
-                    web<br>
-                    &nbsp;&nbsp;depends on api<br>
-                    &nbsp;&nbsp;&nbsp;&nbsp;depends on db<br>
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;depends on dns<br>
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;depends on pve-node
-                </div>
-                <p>4 hops. Now you understand the chain.</p>
-            `,
+            content: (() => {
+                // Build path from leaf to root
+                const leaf = graphData.nodes.find(n => n.id === leafNode);
+                const path = leaf?.ancestors ? [leafNode, ...leaf.ancestors.slice(0, 4)] : [leafNode, rootId];
+                const pathDisplay = path.map((id, i) => {
+                    const indent = '&nbsp;&nbsp;'.repeat(i);
+                    return i === 0 ? id : `${indent}depends on ${id}`;
+                }).join('<br>');
+                return `
+                    <p>"Why does <code>${leafNode}</code> depend on <code>${rootId}</code>?"</p>
+                    <p>Find the <strong>dependency path</strong>:</p>
+                    <div class="info-panel" style="font-family: monospace; font-size: 0.85rem;">
+                        ${pathDisplay}
+                    </div>
+                    <p>${path.length - 1} hop${path.length !== 2 ? 's' : ''}. Now you understand the chain.</p>
+                `;
+            })(),
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
-                ['web', 'api', 'db', 'dns', 'pve-node'].forEach(id => {
+                const leaf = graphData.nodes.find(n => n.id === leafNode);
+                const path = leaf?.ancestors ? [leafNode, ...leaf.ancestors] : [leafNode, rootId];
+                path.forEach(id => {
                     cy.$id(id).addClass('impact-highlight');
                 });
-                // Highlight path edges
                 cy.edges().forEach(e => {
-                    const path = ['web', 'api', 'db', 'dns', 'pve-node'];
                     if (path.includes(e.source().id()) && path.includes(e.target().id())) {
                         e.addClass('impact-highlight');
                     }
@@ -386,6 +690,7 @@
                 <p>The graph is the <strong>single source of truth</strong>. Everything else computes from it.</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
                 cy.fit(50);
             }
@@ -405,21 +710,172 @@
                 <p><a href="index.html" style="color: #58a6ff;">Open the full explorer</a> to try it yourself.</p>
             `,
             action: () => {
+                removeSimulatedNode();
                 cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
                 cy.fit(50);
             }
         }
     ];
+    }
 
-    async function loadGraph() {
-        const resp = await fetch('data/operational.json');
+    let demoSteps = [];
+
+    function addSimulatedNode(baseNode) {
+        if (!baseNode || simulatedNode) return;
+
+        const replicaId = `${baseNode.id}-replica`;
+
+        // Add the simulated node
+        cy.add({
+            group: 'nodes',
+            data: {
+                id: replicaId,
+                dependents: 0,
+                depth: baseNode.depth,
+                simulated: true
+            },
+            classes: 'simulated-node'
+        });
+
+        // Add edges from the same parents as the original
+        if (baseNode.ancestors) {
+            // Find direct parents (nodes that have edges to this node)
+            graphData.edges.filter(e => e.target === baseNode.id).forEach(e => {
+                cy.add({
+                    group: 'edges',
+                    data: {
+                        id: `${e.source}-${replicaId}`,
+                        source: e.source,
+                        target: replicaId,
+                        simulated: true
+                    },
+                    classes: 'simulated-edge'
+                });
+            });
+        }
+
+        // Position near the original node
+        const originalPos = cy.$id(baseNode.id).position();
+        cy.$id(replicaId).position({
+            x: originalPos.x + 80,
+            y: originalPos.y + 60
+        });
+
+        // Style the simulated elements
+        cy.$id(replicaId).style({
+            'border-style': 'dashed',
+            'border-color': '#3fb950',
+            'border-width': 3,
+            'background-color': '#238636',
+            'label': replicaId + ' (simulated)'
+        });
+
+        cy.edges('[simulated]').style({
+            'line-style': 'dashed',
+            'line-color': '#3fb950',
+            'target-arrow-color': '#3fb950'
+        });
+
+        // Highlight original and simulated
+        cy.$id(baseNode.id).addClass('impact-highlight');
+        cy.$id(replicaId).addClass('impact-highlight');
+
+        simulatedNode = replicaId;
+        cy.fit(50);
+    }
+
+    function removeSimulatedNode() {
+        if (simulatedNode) {
+            cy.$id(simulatedNode).remove();
+            cy.edges('[simulated]').remove();
+            simulatedNode = null;
+        }
+    }
+
+    function addCustomSimulatedNode(id, types, deps, depth) {
+        if (simulatedNode) removeSimulatedNode();
+
+        // Add the node
+        cy.add({
+            group: 'nodes',
+            data: {
+                id: id,
+                dependents: 0,
+                depth: depth,
+                types: types.reduce((acc, t) => { acc[t] = true; return acc; }, {}),
+                simulated: true
+            },
+            classes: 'simulated-node'
+        });
+
+        // Add edges from dependencies
+        deps.forEach(dep => {
+            cy.add({
+                group: 'edges',
+                data: {
+                    id: `${dep}-${id}`,
+                    source: dep,
+                    target: id,
+                    simulated: true
+                },
+                classes: 'simulated-edge'
+            });
+        });
+
+        // Position the node - find a good spot near its dependencies
+        if (deps.length > 0) {
+            const depPositions = deps.map(d => cy.$id(d).position()).filter(p => p);
+            if (depPositions.length > 0) {
+                const avgX = depPositions.reduce((sum, p) => sum + p.x, 0) / depPositions.length;
+                const avgY = depPositions.reduce((sum, p) => sum + p.y, 0) / depPositions.length;
+                cy.$id(id).position({ x: avgX + 100, y: avgY + 80 });
+            }
+        } else {
+            // Root node - place near other roots
+            const roots = graphData.roots || [];
+            if (roots.length > 0) {
+                const rootPos = cy.$id(roots[0]).position();
+                cy.$id(id).position({ x: rootPos.x + 120, y: rootPos.y });
+            }
+        }
+
+        // Style the node
+        cy.$id(id).style({
+            'border-style': 'dashed',
+            'border-color': '#3fb950',
+            'border-width': 3,
+            'background-color': '#238636',
+            'label': id + ' (new)'
+        });
+
+        cy.edges('[simulated]').style({
+            'line-style': 'dashed',
+            'line-color': '#3fb950',
+            'target-arrow-color': '#3fb950'
+        });
+
+        // Highlight the new node and its dependencies
+        cy.$id(id).addClass('impact-highlight');
+        deps.forEach(d => cy.$id(d).addClass('impact-highlight'));
+
+        simulatedNode = id;
+        cy.fit(50);
+    }
+
+    async function loadGraph(example) {
+        currentExample = example || 'operational';
+        const resp = await fetch(`data/${currentExample}.json`);
         graphData = await resp.json();
+        demoSteps = generateSteps();
+        currentStep = 0;
+        simulatedNode = null;
         initCytoscape();
         updateStep();
     }
 
     function initCytoscape() {
         const maxDeps = Math.max(...graphData.nodes.map(n => n.dependents));
+        const rootId = graphData.roots?.[0] || graphData.nodes.find(n => n.depth === 0)?.id;
 
         cy = cytoscape({
             container: document.getElementById('cy'),
@@ -450,14 +906,16 @@
                 { selector: 'node.impact-source', style: { 'background-color': '#f85149', 'border-color': '#ff7b72', 'border-width': 4 } },
                 { selector: 'node.impact-highlight', style: { 'border-color': '#f85149', 'border-width': 3 } },
                 { selector: 'node.dimmed', style: { 'opacity': 0.2 } },
+                { selector: 'node.simulated-node', style: { 'border-style': 'dashed', 'border-color': '#3fb950', 'border-width': 3, 'background-color': '#238636' } },
                 { selector: 'edge', style: { 'width': 2, 'line-color': '#30363d', 'target-arrow-color': '#30363d', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } },
                 { selector: 'edge.impact-highlight', style: { 'line-color': '#f85149', 'target-arrow-color': '#f85149', 'width': 3 } },
-                { selector: 'edge.dimmed', style: { 'opacity': 0.1 } }
+                { selector: 'edge.dimmed', style: { 'opacity': 0.1 } },
+                { selector: 'edge.simulated-edge', style: { 'line-style': 'dashed', 'line-color': '#3fb950', 'target-arrow-color': '#3fb950' } }
             ],
             layout: {
                 name: 'breadthfirst',
                 directed: true,
-                roots: '#pve-node',
+                roots: rootId ? `#${rootId}` : undefined,
                 spacingFactor: 1.5
             }
         });
@@ -547,6 +1005,11 @@
         } else if (e.key === 'Escape') {
             window.location.href = 'index.html';
         }
+    });
+
+    // Example dropdown handler
+    document.getElementById('example-select').addEventListener('change', (e) => {
+        loadGraph(e.target.value);
     });
 
     loadGraph();

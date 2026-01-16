@@ -1,0 +1,130 @@
+{
+    "nodes": [
+        {
+            "id": "pve1",
+            "types": {"Hypervisor": true, "PhysicalServer": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 4,
+            "ip": "10.0.0.10",
+            "host": "pve1.example.com",
+            "status": {"health": "healthy", "cpu": 35, "memory": 48}
+        },
+        {
+            "id": "pve2",
+            "types": {"Hypervisor": true, "PhysicalServer": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 2,
+            "ip": "10.0.0.11",
+            "host": "pve2.example.com",
+            "status": {"health": "healthy", "cpu": 28, "memory": 42}
+        },
+        {
+            "id": "dns-primary",
+            "types": {"VM": true, "DNSServer": true, "CriticalInfra": true},
+            "depth": 1,
+            "ancestors": ["pve1"],
+            "dependents": 4,
+            "ip": "10.0.0.2",
+            "vmid": 100,
+            "status": {"health": "healthy", "queries_per_sec": 850}
+        },
+        {
+            "id": "dns-secondary",
+            "types": {"VM": true, "DNSServer": true, "Replica": true},
+            "depth": 1,
+            "ancestors": ["pve2"],
+            "dependents": 0,
+            "ip": "10.0.0.3",
+            "vmid": 101,
+            "replica_of": "dns-primary",
+            "status": {"health": "healthy", "queries_per_sec": 420}
+        },
+        {
+            "id": "database",
+            "types": {"VM": true, "Database": true},
+            "depth": 2,
+            "ancestors": ["dns-primary", "pve1"],
+            "dependents": 1,
+            "ip": "10.0.0.20",
+            "vmid": 200,
+            "status": {"health": "healthy", "connections": 23}
+        },
+        {
+            "id": "web",
+            "types": {"VM": true, "WebServer": true},
+            "depth": 3,
+            "ancestors": ["database", "dns-primary", "pve2", "pve1"],
+            "dependents": 0,
+            "ip": "10.0.0.30",
+            "vmid": 300,
+            "status": {"health": "healthy", "active_requests": 156}
+        },
+        {
+            "id": "monitoring",
+            "types": {"VM": true, "MonitoringServer": true},
+            "depth": 2,
+            "ancestors": ["dns-primary", "pve1"],
+            "dependents": 0,
+            "ip": "10.0.0.40",
+            "vmid": 400,
+            "status": {"health": "healthy"}
+        }
+    ],
+    "edges": [
+        {"source": "pve1", "target": "dns-primary"},
+        {"source": "pve2", "target": "dns-secondary"},
+        {"source": "pve1", "target": "database"},
+        {"source": "pve2", "target": "web"},
+        {"source": "pve1", "target": "monitoring"},
+        {"source": "dns-primary", "target": "database"},
+        {"source": "dns-primary", "target": "web"},
+        {"source": "database", "target": "web"},
+        {"source": "dns-primary", "target": "monitoring"}
+    ],
+    "topology": {
+        "layer_0": ["pve1", "pve2"],
+        "layer_1": ["dns-primary", "dns-secondary"],
+        "layer_2": ["database", "monitoring"],
+        "layer_3": ["web"]
+    },
+    "roots": ["pve1", "pve2"],
+    "leaves": ["web", "monitoring", "dns-secondary"],
+    "spof": [
+        {"name": "dns-primary", "dependents": 4, "types": ["DNSServer", "CriticalInfra"], "depth": 1},
+        {"name": "database", "dependents": 1, "types": ["Database"], "depth": 2}
+    ],
+    "coupling": [
+        {"name": "pve1", "dependents": 4, "percentage": 57.1},
+        {"name": "dns-primary", "dependents": 4, "percentage": 57.1}
+    ],
+    "metrics": {
+        "total": 7,
+        "maxDepth": 3,
+        "edges": 9,
+        "roots": 2,
+        "leaves": 3
+    },
+    "validation": {"valid": true, "issues": []},
+    "replicas": [
+        {"primary": "dns-primary", "replica": "dns-secondary"}
+    ],
+    "source": "quicue-cab",
+    "history": [
+        {
+            "commit": "cab-2026-01-15",
+            "timestamp": "2026-01-15T02:00:00Z",
+            "author": "nightly-ci",
+            "message": "Nightly CAB validation - all checks passed",
+            "changes": []
+        },
+        {
+            "commit": "cab-2026-01-14",
+            "timestamp": "2026-01-14T02:00:00Z",
+            "author": "nightly-ci",
+            "message": "Add dns-secondary replica for HA",
+            "changes": [{"type": "added", "resource": "dns-secondary"}]
+        }
+    ]
+}

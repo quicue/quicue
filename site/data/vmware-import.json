@@ -1,0 +1,202 @@
+{
+    "nodes": [
+        {
+            "id": "vcenter-01",
+            "types": {"vCenter": true, "ManagementServer": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 10,
+            "vmware": {
+                "type": "VirtualCenter",
+                "version": "8.0.2",
+                "fqdn": "vcenter.example.com"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "cluster-prod",
+            "types": {"Cluster": true, "ComputeResource": true},
+            "depth": 1,
+            "ancestors": ["vcenter-01"],
+            "dependents": 8,
+            "vmware": {
+                "type": "ClusterComputeResource",
+                "ha_enabled": true,
+                "drs_enabled": true,
+                "hosts": 4
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "esxi-01",
+            "types": {"ESXiHost": true, "ComputeHost": true},
+            "depth": 2,
+            "ancestors": ["cluster-prod", "vcenter-01"],
+            "dependents": 3,
+            "vmware": {
+                "type": "HostSystem",
+                "version": "8.0.2",
+                "cpu_cores": 32,
+                "memory_gb": 256
+            },
+            "status": {"health": "healthy", "cpu": 45, "memory": 62}
+        },
+        {
+            "id": "esxi-02",
+            "types": {"ESXiHost": true, "ComputeHost": true},
+            "depth": 2,
+            "ancestors": ["cluster-prod", "vcenter-01"],
+            "dependents": 3,
+            "vmware": {
+                "type": "HostSystem",
+                "version": "8.0.2",
+                "cpu_cores": 32,
+                "memory_gb": 256
+            },
+            "status": {"health": "healthy", "cpu": 38, "memory": 55}
+        },
+        {
+            "id": "datastore-san01",
+            "types": {"Datastore": true, "Storage": true, "CriticalInfra": true},
+            "depth": 2,
+            "ancestors": ["cluster-prod", "vcenter-01"],
+            "dependents": 4,
+            "vmware": {
+                "type": "Datastore",
+                "capacity_tb": 10,
+                "free_tb": 3.2,
+                "storage_type": "VMFS"
+            },
+            "status": {"health": "healthy", "used_pct": 68}
+        },
+        {
+            "id": "vm-db-prod",
+            "types": {"VirtualMachine": true, "Database": true, "BusinessCritical": true},
+            "depth": 3,
+            "ancestors": ["esxi-01", "datastore-san01", "cluster-prod", "vcenter-01"],
+            "dependents": 2,
+            "vmware": {
+                "type": "VirtualMachine",
+                "guest_os": "Ubuntu 22.04",
+                "cpu": 8,
+                "memory_gb": 32,
+                "power_state": "poweredOn"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "vm-app-01",
+            "types": {"VirtualMachine": true, "ApplicationServer": true},
+            "depth": 3,
+            "ancestors": ["esxi-01", "datastore-san01", "cluster-prod", "vcenter-01"],
+            "dependents": 1,
+            "vmware": {
+                "type": "VirtualMachine",
+                "guest_os": "Ubuntu 22.04",
+                "cpu": 4,
+                "memory_gb": 16,
+                "power_state": "poweredOn"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "vm-app-02",
+            "types": {"VirtualMachine": true, "ApplicationServer": true},
+            "depth": 3,
+            "ancestors": ["esxi-02", "datastore-san01", "cluster-prod", "vcenter-01"],
+            "dependents": 1,
+            "vmware": {
+                "type": "VirtualMachine",
+                "guest_os": "Ubuntu 22.04",
+                "cpu": 4,
+                "memory_gb": 16,
+                "power_state": "poweredOn"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "vm-web-01",
+            "types": {"VirtualMachine": true, "WebServer": true},
+            "depth": 4,
+            "ancestors": ["vm-db-prod", "vm-app-01", "esxi-02", "datastore-san01", "cluster-prod", "vcenter-01"],
+            "dependents": 0,
+            "vmware": {
+                "type": "VirtualMachine",
+                "guest_os": "Ubuntu 22.04",
+                "cpu": 2,
+                "memory_gb": 8,
+                "power_state": "poweredOn"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "vm-web-02",
+            "types": {"VirtualMachine": true, "WebServer": true},
+            "depth": 4,
+            "ancestors": ["vm-db-prod", "vm-app-02", "esxi-02", "datastore-san01", "cluster-prod", "vcenter-01"],
+            "dependents": 0,
+            "vmware": {
+                "type": "VirtualMachine",
+                "guest_os": "Ubuntu 22.04",
+                "cpu": 2,
+                "memory_gb": 8,
+                "power_state": "poweredOn"
+            },
+            "status": {"health": "healthy"}
+        }
+    ],
+    "edges": [
+        {"source": "vcenter-01", "target": "cluster-prod"},
+        {"source": "cluster-prod", "target": "esxi-01"},
+        {"source": "cluster-prod", "target": "esxi-02"},
+        {"source": "cluster-prod", "target": "datastore-san01"},
+        {"source": "esxi-01", "target": "vm-db-prod"},
+        {"source": "esxi-01", "target": "vm-app-01"},
+        {"source": "esxi-02", "target": "vm-app-02"},
+        {"source": "esxi-02", "target": "vm-web-01"},
+        {"source": "esxi-02", "target": "vm-web-02"},
+        {"source": "datastore-san01", "target": "vm-db-prod"},
+        {"source": "datastore-san01", "target": "vm-app-01"},
+        {"source": "datastore-san01", "target": "vm-app-02"},
+        {"source": "datastore-san01", "target": "vm-web-01"},
+        {"source": "datastore-san01", "target": "vm-web-02"},
+        {"source": "vm-db-prod", "target": "vm-app-01"},
+        {"source": "vm-db-prod", "target": "vm-app-02"},
+        {"source": "vm-app-01", "target": "vm-web-01"},
+        {"source": "vm-app-02", "target": "vm-web-02"}
+    ],
+    "topology": {
+        "layer_0": ["vcenter-01"],
+        "layer_1": ["cluster-prod"],
+        "layer_2": ["esxi-01", "esxi-02", "datastore-san01"],
+        "layer_3": ["vm-db-prod", "vm-app-01", "vm-app-02"],
+        "layer_4": ["vm-web-01", "vm-web-02"]
+    },
+    "roots": ["vcenter-01"],
+    "leaves": ["vm-web-01", "vm-web-02"],
+    "spof": [
+        {"name": "vcenter-01", "dependents": 10, "types": ["vCenter"], "depth": 0},
+        {"name": "cluster-prod", "dependents": 8, "types": ["Cluster"], "depth": 1},
+        {"name": "datastore-san01", "dependents": 4, "types": ["Datastore", "CriticalInfra"], "depth": 2},
+        {"name": "vm-db-prod", "dependents": 2, "types": ["Database", "BusinessCritical"], "depth": 3}
+    ],
+    "coupling": [
+        {"name": "vcenter-01", "dependents": 10, "percentage": 100},
+        {"name": "cluster-prod", "dependents": 8, "percentage": 80},
+        {"name": "datastore-san01", "dependents": 4, "percentage": 40}
+    ],
+    "metrics": {
+        "total": 10,
+        "maxDepth": 4,
+        "edges": 18,
+        "roots": 1,
+        "leaves": 2
+    },
+    "validation": {"valid": true, "issues": []},
+    "source": "vmware",
+    "import": {
+        "method": "vSphere API",
+        "vcenter": "vcenter.example.com",
+        "timestamp": "2026-01-15T11:00:00Z"
+    }
+}

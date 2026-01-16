@@ -1,0 +1,122 @@
+{
+    "nodes": [
+        {
+            "id": "git-repo",
+            "types": {"Repository": true, "SourceControl": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 8,
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "build-stage",
+            "types": {"BuildStage": true, "Pipeline": true},
+            "depth": 1,
+            "ancestors": ["git-repo"],
+            "dependents": 6,
+            "status": {"health": "healthy", "last_run": "2m ago", "duration": "3m 24s"}
+        },
+        {
+            "id": "unit-tests",
+            "types": {"TestStage": true, "Pipeline": true},
+            "depth": 2,
+            "ancestors": ["build-stage", "git-repo"],
+            "dependents": 4,
+            "status": {"health": "healthy", "passed": 342, "failed": 0}
+        },
+        {
+            "id": "integration-tests",
+            "types": {"TestStage": true, "Pipeline": true},
+            "depth": 2,
+            "ancestors": ["build-stage", "git-repo"],
+            "dependents": 4,
+            "status": {"health": "healthy", "passed": 87, "failed": 0}
+        },
+        {
+            "id": "security-scan",
+            "types": {"SecurityStage": true, "Pipeline": true},
+            "depth": 2,
+            "ancestors": ["build-stage", "git-repo"],
+            "dependents": 3,
+            "status": {"health": "healthy", "vulnerabilities": 0}
+        },
+        {
+            "id": "artifact-registry",
+            "types": {"ArtifactRegistry": true, "Storage": true},
+            "depth": 3,
+            "ancestors": ["unit-tests", "integration-tests", "build-stage", "git-repo"],
+            "dependents": 3,
+            "status": {"health": "healthy", "artifacts": 156}
+        },
+        {
+            "id": "deploy-staging",
+            "types": {"DeployStage": true, "Pipeline": true, "Environment": true},
+            "depth": 4,
+            "ancestors": ["artifact-registry", "security-scan", "unit-tests", "integration-tests", "build-stage", "git-repo"],
+            "dependents": 2,
+            "status": {"health": "healthy", "version": "v2.3.1-rc1"}
+        },
+        {
+            "id": "smoke-tests",
+            "types": {"TestStage": true, "Pipeline": true},
+            "depth": 5,
+            "ancestors": ["deploy-staging", "artifact-registry", "security-scan", "unit-tests", "integration-tests", "build-stage", "git-repo"],
+            "dependents": 1,
+            "status": {"health": "healthy", "passed": 15, "failed": 0}
+        },
+        {
+            "id": "deploy-production",
+            "types": {"DeployStage": true, "Pipeline": true, "Environment": true, "BusinessCritical": true},
+            "depth": 6,
+            "ancestors": ["smoke-tests", "deploy-staging", "artifact-registry", "security-scan", "unit-tests", "integration-tests", "build-stage", "git-repo"],
+            "dependents": 0,
+            "status": {"health": "healthy", "version": "v2.3.0", "last_deploy": "2026-01-14T16:00:00Z"}
+        }
+    ],
+    "edges": [
+        {"source": "git-repo", "target": "build-stage"},
+        {"source": "build-stage", "target": "unit-tests"},
+        {"source": "build-stage", "target": "integration-tests"},
+        {"source": "build-stage", "target": "security-scan"},
+        {"source": "unit-tests", "target": "artifact-registry"},
+        {"source": "integration-tests", "target": "artifact-registry"},
+        {"source": "artifact-registry", "target": "deploy-staging"},
+        {"source": "security-scan", "target": "deploy-staging"},
+        {"source": "deploy-staging", "target": "smoke-tests"},
+        {"source": "smoke-tests", "target": "deploy-production"}
+    ],
+    "topology": {
+        "layer_0": ["git-repo"],
+        "layer_1": ["build-stage"],
+        "layer_2": ["unit-tests", "integration-tests", "security-scan"],
+        "layer_3": ["artifact-registry"],
+        "layer_4": ["deploy-staging"],
+        "layer_5": ["smoke-tests"],
+        "layer_6": ["deploy-production"]
+    },
+    "roots": ["git-repo"],
+    "leaves": ["deploy-production"],
+    "spof": [
+        {"name": "git-repo", "dependents": 8, "types": ["Repository"], "depth": 0},
+        {"name": "build-stage", "dependents": 6, "types": ["BuildStage"], "depth": 1},
+        {"name": "artifact-registry", "dependents": 3, "types": ["ArtifactRegistry"], "depth": 3}
+    ],
+    "coupling": [
+        {"name": "git-repo", "dependents": 8, "percentage": 100},
+        {"name": "build-stage", "dependents": 6, "percentage": 75}
+    ],
+    "metrics": {
+        "total": 9,
+        "maxDepth": 6,
+        "edges": 10,
+        "roots": 1,
+        "leaves": 1
+    },
+    "validation": {"valid": true, "issues": []},
+    "pipeline": {
+        "name": "main-deployment",
+        "trigger": "push to main",
+        "approval_required": ["deploy-production"],
+        "rollback_target": "deploy-staging"
+    }
+}

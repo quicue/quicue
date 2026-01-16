@@ -1,0 +1,151 @@
+{
+    "nodes": [
+        {
+            "id": "api-gateway",
+            "types": {"APIGateway": true, "Ingress": true, "CriticalInfra": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 10,
+            "status": {"health": "healthy", "rps": 12500, "p99_ms": 45}
+        },
+        {
+            "id": "service-mesh",
+            "types": {"ServiceMesh": true, "Istio": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 8,
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "user-service",
+            "types": {"Microservice": true, "UserManagement": true},
+            "depth": 1,
+            "ancestors": ["api-gateway", "service-mesh"],
+            "dependents": 5,
+            "status": {"health": "healthy", "replicas": "3/3", "rps": 2100}
+        },
+        {
+            "id": "auth-service",
+            "types": {"Microservice": true, "Authentication": true, "CriticalInfra": true},
+            "depth": 1,
+            "ancestors": ["api-gateway", "service-mesh"],
+            "dependents": 6,
+            "status": {"health": "healthy", "replicas": "3/3", "rps": 8500}
+        },
+        {
+            "id": "product-service",
+            "types": {"Microservice": true, "Catalog": true},
+            "depth": 1,
+            "ancestors": ["api-gateway", "service-mesh"],
+            "dependents": 3,
+            "status": {"health": "healthy", "replicas": "2/2", "rps": 3200}
+        },
+        {
+            "id": "inventory-service",
+            "types": {"Microservice": true, "Inventory": true},
+            "depth": 2,
+            "ancestors": ["product-service", "api-gateway", "service-mesh"],
+            "dependents": 2,
+            "status": {"health": "healthy", "replicas": "2/2", "rps": 1800}
+        },
+        {
+            "id": "pricing-service",
+            "types": {"Microservice": true, "Pricing": true},
+            "depth": 2,
+            "ancestors": ["product-service", "api-gateway", "service-mesh"],
+            "dependents": 1,
+            "status": {"health": "healthy", "replicas": "2/2", "rps": 2400}
+        },
+        {
+            "id": "cart-service",
+            "types": {"Microservice": true, "ShoppingCart": true},
+            "depth": 2,
+            "ancestors": ["user-service", "auth-service", "api-gateway", "service-mesh"],
+            "dependents": 2,
+            "status": {"health": "healthy", "replicas": "3/3", "rps": 4100}
+        },
+        {
+            "id": "order-service",
+            "types": {"Microservice": true, "OrderManagement": true, "BusinessCritical": true},
+            "depth": 3,
+            "ancestors": ["cart-service", "inventory-service", "user-service", "auth-service", "product-service", "api-gateway", "service-mesh"],
+            "dependents": 2,
+            "status": {"health": "healthy", "replicas": "3/3", "rps": 1200}
+        },
+        {
+            "id": "payment-service",
+            "types": {"Microservice": true, "Payment": true, "BusinessCritical": true},
+            "depth": 4,
+            "ancestors": ["order-service", "auth-service", "user-service", "api-gateway", "service-mesh"],
+            "dependents": 1,
+            "status": {"health": "healthy", "replicas": "3/3", "rps": 850}
+        },
+        {
+            "id": "notification-service",
+            "types": {"Microservice": true, "Notification": true},
+            "depth": 4,
+            "ancestors": ["order-service", "user-service", "api-gateway", "service-mesh"],
+            "dependents": 0,
+            "status": {"health": "healthy", "replicas": "2/2", "rps": 620}
+        },
+        {
+            "id": "shipping-service",
+            "types": {"Microservice": true, "Fulfillment": true},
+            "depth": 5,
+            "ancestors": ["payment-service", "order-service", "inventory-service", "api-gateway", "service-mesh"],
+            "dependents": 0,
+            "status": {"health": "healthy", "replicas": "2/2", "rps": 340}
+        }
+    ],
+    "edges": [
+        {"source": "api-gateway", "target": "user-service"},
+        {"source": "api-gateway", "target": "auth-service"},
+        {"source": "api-gateway", "target": "product-service"},
+        {"source": "service-mesh", "target": "user-service"},
+        {"source": "service-mesh", "target": "auth-service"},
+        {"source": "service-mesh", "target": "product-service"},
+        {"source": "product-service", "target": "inventory-service"},
+        {"source": "product-service", "target": "pricing-service"},
+        {"source": "user-service", "target": "cart-service"},
+        {"source": "auth-service", "target": "cart-service"},
+        {"source": "cart-service", "target": "order-service"},
+        {"source": "inventory-service", "target": "order-service"},
+        {"source": "order-service", "target": "payment-service"},
+        {"source": "order-service", "target": "notification-service"},
+        {"source": "payment-service", "target": "shipping-service"}
+    ],
+    "topology": {
+        "layer_0": ["api-gateway", "service-mesh"],
+        "layer_1": ["user-service", "auth-service", "product-service"],
+        "layer_2": ["inventory-service", "pricing-service", "cart-service"],
+        "layer_3": ["order-service"],
+        "layer_4": ["payment-service", "notification-service"],
+        "layer_5": ["shipping-service"]
+    },
+    "roots": ["api-gateway", "service-mesh"],
+    "leaves": ["shipping-service", "notification-service", "pricing-service"],
+    "spof": [
+        {"name": "api-gateway", "dependents": 10, "types": ["APIGateway", "CriticalInfra"], "depth": 0},
+        {"name": "auth-service", "dependents": 6, "types": ["Authentication", "CriticalInfra"], "depth": 1},
+        {"name": "user-service", "dependents": 5, "types": ["UserManagement"], "depth": 1}
+    ],
+    "coupling": [
+        {"name": "api-gateway", "dependents": 10, "percentage": 83.3},
+        {"name": "service-mesh", "dependents": 8, "percentage": 66.7},
+        {"name": "auth-service", "dependents": 6, "percentage": 50}
+    ],
+    "metrics": {
+        "total": 12,
+        "maxDepth": 5,
+        "edges": 15,
+        "roots": 2,
+        "leaves": 3
+    },
+    "validation": {"valid": true, "issues": []},
+    "mesh": {
+        "platform": "Istio",
+        "mtls": "STRICT",
+        "tracing": "Jaeger",
+        "metrics": "Prometheus"
+    }
+}

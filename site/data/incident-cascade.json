@@ -1,0 +1,127 @@
+{
+    "nodes": [
+        {
+            "id": "core-switch",
+            "types": {"NetworkSwitch": true, "CriticalInfra": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 8,
+            "status": {"health": "failed", "error": "Link flapping detected"}
+        },
+        {
+            "id": "dns-cluster",
+            "types": {"DNSServer": true, "CriticalInfra": true},
+            "depth": 1,
+            "ancestors": ["core-switch"],
+            "dependents": 6,
+            "status": {"health": "degraded", "error": "Intermittent connectivity"}
+        },
+        {
+            "id": "auth-service",
+            "types": {"AuthServer": true},
+            "depth": 1,
+            "ancestors": ["core-switch"],
+            "dependents": 4,
+            "status": {"health": "degraded", "error": "Connection timeouts"}
+        },
+        {
+            "id": "database-primary",
+            "types": {"Database": true, "CriticalInfra": true},
+            "depth": 2,
+            "ancestors": ["dns-cluster", "core-switch"],
+            "dependents": 4,
+            "status": {"health": "degraded", "error": "Replication lag 45s"}
+        },
+        {
+            "id": "cache-cluster",
+            "types": {"CacheCluster": true},
+            "depth": 2,
+            "ancestors": ["dns-cluster", "core-switch"],
+            "dependents": 2,
+            "status": {"health": "degraded", "error": "Cluster partition"}
+        },
+        {
+            "id": "api-gateway",
+            "types": {"APIGateway": true},
+            "depth": 3,
+            "ancestors": ["database-primary", "cache-cluster", "auth-service", "dns-cluster", "core-switch"],
+            "dependents": 2,
+            "status": {"health": "degraded", "error": "50% error rate", "error_rate": 50}
+        },
+        {
+            "id": "order-service",
+            "types": {"Microservice": true, "BusinessCritical": true},
+            "depth": 4,
+            "ancestors": ["api-gateway", "database-primary", "cache-cluster", "auth-service", "dns-cluster", "core-switch"],
+            "dependents": 1,
+            "status": {"health": "failed", "error": "Circuit breaker open"}
+        },
+        {
+            "id": "payment-service",
+            "types": {"Microservice": true, "BusinessCritical": true},
+            "depth": 4,
+            "ancestors": ["api-gateway", "database-primary", "auth-service", "dns-cluster", "core-switch"],
+            "dependents": 0,
+            "status": {"health": "failed", "error": "Unable to process payments"}
+        },
+        {
+            "id": "web-frontend",
+            "types": {"WebServer": true},
+            "depth": 5,
+            "ancestors": ["order-service", "api-gateway", "database-primary", "cache-cluster", "auth-service", "dns-cluster", "core-switch"],
+            "dependents": 0,
+            "status": {"health": "failed", "error": "503 Service Unavailable"}
+        }
+    ],
+    "edges": [
+        {"source": "core-switch", "target": "dns-cluster"},
+        {"source": "core-switch", "target": "auth-service"},
+        {"source": "dns-cluster", "target": "database-primary"},
+        {"source": "dns-cluster", "target": "cache-cluster"},
+        {"source": "database-primary", "target": "api-gateway"},
+        {"source": "cache-cluster", "target": "api-gateway"},
+        {"source": "auth-service", "target": "api-gateway"},
+        {"source": "api-gateway", "target": "order-service"},
+        {"source": "api-gateway", "target": "payment-service"},
+        {"source": "order-service", "target": "web-frontend"}
+    ],
+    "topology": {
+        "layer_0": ["core-switch"],
+        "layer_1": ["dns-cluster", "auth-service"],
+        "layer_2": ["database-primary", "cache-cluster"],
+        "layer_3": ["api-gateway"],
+        "layer_4": ["order-service", "payment-service"],
+        "layer_5": ["web-frontend"]
+    },
+    "roots": ["core-switch"],
+    "leaves": ["web-frontend", "payment-service"],
+    "spof": [
+        {"name": "core-switch", "dependents": 8, "types": ["NetworkSwitch", "CriticalInfra"], "depth": 0},
+        {"name": "dns-cluster", "dependents": 6, "types": ["DNSServer", "CriticalInfra"], "depth": 1},
+        {"name": "database-primary", "dependents": 4, "types": ["Database", "CriticalInfra"], "depth": 2},
+        {"name": "api-gateway", "dependents": 2, "types": ["APIGateway"], "depth": 3}
+    ],
+    "coupling": [
+        {"name": "core-switch", "dependents": 8, "percentage": 100},
+        {"name": "dns-cluster", "dependents": 6, "percentage": 75},
+        {"name": "auth-service", "dependents": 4, "percentage": 50},
+        {"name": "database-primary", "dependents": 4, "percentage": 50}
+    ],
+    "metrics": {
+        "total": 9,
+        "maxDepth": 5,
+        "edges": 10,
+        "roots": 1,
+        "leaves": 2
+    },
+    "validation": {"valid": true, "issues": []},
+    "incident": {
+        "id": "INC-2026-0115-001",
+        "title": "Core switch failure causing cascading outage",
+        "severity": "P1",
+        "root_cause": "core-switch",
+        "affected_services": 8,
+        "business_impact": "Order processing and payments unavailable",
+        "started_at": "2026-01-15T14:23:00Z"
+    }
+}

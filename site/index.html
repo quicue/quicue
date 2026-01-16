@@ -1042,14 +1042,17 @@
     <header>
         <h1><a href="https://github.com/quicue/quicue">quicue</a> <span>/ graph explorer</span></h1>
         <select id="example-select">
-            <option value="graph-patterns">graph-patterns (5 nodes)</option>
-            <option value="operational">operational (8 nodes)</option>
-            <option value="3-layer">3-layer (3 nodes)</option>
-            <option value="multi-region">multi-region (22 nodes)</option>
-            <option value="kubernetes">kubernetes (15 nodes)</option>
-            <option value="terraform-aws">terraform-aws (12 nodes)</option>
-            <option value="type-composition">type-composition</option>
-            <option value="provider-demo">provider-demo</option>
+            <option value="graph-patterns">Basic Patterns (5 nodes)</option>
+            <option value="operational">Ops Stack (8 nodes)</option>
+            <option value="incident-cascade">Incident Cascade (9 nodes)</option>
+            <option value="cicd-pipeline">CI/CD Pipeline (9 nodes)</option>
+            <option value="microservices-mesh">Microservices Mesh (12 nodes)</option>
+            <option value="cab-datacenter">CAB Datacenter (7 nodes)</option>
+            <option value="topdesk-import">TopDesk CMDB (8 nodes)</option>
+            <option value="vmware-import">VMware vSphere (10 nodes)</option>
+            <option value="multi-region">Multi-Region HA (22 nodes)</option>
+            <option value="kubernetes">Kubernetes Cluster (15 nodes)</option>
+            <option value="terraform-aws">Terraform AWS (12 nodes)</option>
         </select>
         <button id="load-jsonld-btn" style="background: #238636; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">Load JSON-LD</button>
         <nav>
@@ -1142,6 +1145,14 @@
                     <div id="detail-actions-section" style="margin-top: 0.75rem; display: none;">
                         <span class="info-label">Actions</span>
                         <div id="detail-actions" style="margin-top: 0.5rem;"></div>
+                    </div>
+                    <div id="detail-source-section" style="margin-top: 0.75rem; display: none;">
+                        <span class="info-label" id="detail-source-label">Source Data</span>
+                        <div id="detail-source-data" style="margin-top: 0.5rem; font-size: 0.8rem;"></div>
+                    </div>
+                    <div id="detail-analysis-section" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #30363d;">
+                        <span class="info-label" style="color: #58a6ff;">quicue Analysis</span>
+                        <div id="detail-analysis" style="margin-top: 0.5rem; font-size: 0.8rem;"></div>
                     </div>
                 </div>
                 <div class="panel" id="edge-details">
@@ -2063,6 +2074,268 @@
             } else {
                 costRow.style.display = 'none';
             }
+
+            // Show source-specific data (TopDesk, VMware, etc.)
+            const sourceSection = document.getElementById('detail-source-section');
+            const sourceLabel = document.getElementById('detail-source-label');
+            const sourceData = document.getElementById('detail-source-data');
+
+            if (data.topdesk) {
+                sourceLabel.textContent = 'TopDesk CMDB';
+                const td = data.topdesk;
+                sourceData.innerHTML = `
+                    <div style="display: grid; gap: 0.25rem;">
+                        ${td.name ? `<div><span style="color: #8b949e;">Name:</span> <strong>${td.name}</strong></div>` : ''}
+                        ${td.ci_number ? `<div><span style="color: #8b949e;">CI#:</span> <code>${td.ci_number}</code></div>` : ''}
+                        ${td.category ? `<div><span style="color: #8b949e;">Category:</span> ${td.category}${td.subcategory ? ` / ${td.subcategory}` : ''}</div>` : ''}
+                        ${td.sla ? `<div><span style="color: #8b949e;">SLA:</span> <span style="color: ${td.sla === 'Platinum' ? '#a371f7' : td.sla === 'Gold' ? '#d29922' : '#8b949e'};">${td.sla}</span></div>` : ''}
+                        ${td.owner ? `<div><span style="color: #8b949e;">Owner:</span> ${td.owner}</div>` : ''}
+                        ${td.location ? `<div><span style="color: #8b949e;">Location:</span> ${td.location}</div>` : ''}
+                    </div>
+                `;
+                sourceSection.style.display = 'block';
+            } else if (data.vmware) {
+                sourceLabel.textContent = 'VMware vSphere';
+                const vm = data.vmware;
+                sourceData.innerHTML = `
+                    <div style="display: grid; gap: 0.25rem;">
+                        ${vm.type ? `<div><span style="color: #8b949e;">Type:</span> <code>${vm.type}</code></div>` : ''}
+                        ${vm.version ? `<div><span style="color: #8b949e;">Version:</span> ${vm.version}</div>` : ''}
+                        ${vm.guest_os ? `<div><span style="color: #8b949e;">OS:</span> ${vm.guest_os}</div>` : ''}
+                        ${vm.cpu ? `<div><span style="color: #8b949e;">CPU:</span> ${vm.cpu} ${vm.cpu_cores ? `(${vm.cpu_cores} cores)` : 'vCPU'}</div>` : ''}
+                        ${vm.memory_gb ? `<div><span style="color: #8b949e;">Memory:</span> ${vm.memory_gb} GB</div>` : ''}
+                        ${vm.capacity_tb ? `<div><span style="color: #8b949e;">Capacity:</span> ${vm.capacity_tb} TB (${vm.free_tb} TB free)</div>` : ''}
+                        ${vm.power_state ? `<div><span style="color: #8b949e;">Power:</span> <span style="color: ${vm.power_state === 'poweredOn' ? '#3fb950' : '#f85149'};">${vm.power_state}</span></div>` : ''}
+                        ${vm.ha_enabled !== undefined ? `<div><span style="color: #8b949e;">HA:</span> ${vm.ha_enabled ? 'Enabled' : 'Disabled'}</div>` : ''}
+                    </div>
+                `;
+                sourceSection.style.display = 'block';
+            } else if (data.terraform) {
+                sourceLabel.textContent = 'Terraform';
+                const tf = data.terraform;
+                sourceData.innerHTML = `
+                    <div style="display: grid; gap: 0.25rem;">
+                        ${tf.resource_type ? `<div><span style="color: #8b949e;">Resource:</span> <code>${tf.resource_type}</code></div>` : ''}
+                        ${tf.address ? `<div><span style="color: #8b949e;">Address:</span> <code style="font-size: 0.75rem;">${tf.address}</code></div>` : ''}
+                    </div>
+                `;
+                sourceSection.style.display = 'block';
+            } else {
+                sourceSection.style.display = 'none';
+            }
+
+            // Show quicue analysis - context-aware based on source
+            const analysisSection = document.getElementById('detail-analysis-section');
+            const analysisEl = document.getElementById('detail-analysis');
+            const nodeCount = graphData.nodes.length;
+            const ancestors = data.ancestors || [];
+            const dependents = data.dependents || 0;
+            const depth = data.depth || 0;
+            const source = graphData.source || '';
+            const nodeTypes = normalizeTypes(data.types);
+
+            // Check if this is a SPOF
+            const isSpof = graphData.spof && graphData.spof.some(s => (s.name || s.id) === data.id);
+
+            // Check coupling
+            const couplingEntry = graphData.coupling && graphData.coupling.find(c => (c.name || c.id) === data.id);
+            const couplingPct = couplingEntry ? couplingEntry.percentage : (dependents > 0 ? Math.round((dependents / (nodeCount - 1)) * 100) : 0);
+
+            // Find what depends on this node
+            const dependentNodes = graphData.nodes.filter(n => n.ancestors && n.ancestors.includes(data.id));
+
+            let analysisHtml = '<div style="display: grid; gap: 0.5rem;">';
+
+            // Context-aware analysis based on source type
+            if (source === 'topdesk' && data.topdesk) {
+                // TopDesk: Focus on SLA and business impact
+                const td = data.topdesk;
+                const affectedServices = dependentNodes.filter(n => n.topdesk?.category === 'Business Service');
+                const affectedProcesses = dependentNodes.filter(n => n.topdesk?.category === 'Business Process');
+
+                if (dependents > 0) {
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Business impact if unavailable:</span>
+                        <div style="margin-top: 0.25rem;">
+                            ${affectedServices.length > 0 ? `<div style="color: #d29922;">${affectedServices.length} service${affectedServices.length > 1 ? 's' : ''}: ${affectedServices.map(n => n.topdesk?.name || n.id).join(', ')}</div>` : ''}
+                            ${affectedProcesses.length > 0 ? `<div style="color: #f85149;">${affectedProcesses.length} business process${affectedProcesses.length > 1 ? 'es' : ''}: ${affectedProcesses.map(n => n.topdesk?.name || n.id).join(', ')}</div>` : ''}
+                            ${affectedServices.length === 0 && affectedProcesses.length === 0 ? `<div>${dependents} downstream CI${dependents > 1 ? 's' : ''}</div>` : ''}
+                        </div>
+                    </div>`;
+                }
+
+                // SLA cascade
+                const goldSlaAffected = dependentNodes.filter(n => n.topdesk?.sla === 'Gold' || n.topdesk?.sla === 'Platinum');
+                if (goldSlaAffected.length > 0) {
+                    analysisHtml += `<div style="color: #d29922;">
+                        <strong>SLA risk:</strong> ${goldSlaAffected.length} Gold/Platinum SLA item${goldSlaAffected.length > 1 ? 's' : ''} affected
+                    </div>`;
+                }
+
+                // Owner accountability
+                if (td.owner && dependents > 0) {
+                    const otherOwners = [...new Set(dependentNodes.map(n => n.topdesk?.owner).filter(o => o && o !== td.owner))];
+                    if (otherOwners.length > 0) {
+                        analysisHtml += `<div>
+                            <span style="color: #8b949e;">Cross-team impact:</span> ${otherOwners.join(', ')}
+                        </div>`;
+                    }
+                }
+
+            } else if (source === 'vmware' && data.vmware) {
+                // VMware: Focus on infrastructure failure modes
+                const vm = data.vmware;
+
+                if (vm.type === 'HostSystem' || nodeTypes.includes('ESXiHost')) {
+                    const vmsOnHost = dependentNodes.filter(n => n.vmware?.type === 'VirtualMachine');
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Host failure impact:</span>
+                        <strong>${vmsOnHost.length} VM${vmsOnHost.length !== 1 ? 's' : ''}</strong> would need migration
+                        ${vm.ha_enabled ? `<div style="color: #3fb950; font-size: 0.75rem;">HA enabled - automatic failover available</div>` : `<div style="color: #f85149; font-size: 0.75rem;">No HA - manual intervention required</div>`}
+                    </div>`;
+                } else if (vm.type === 'Datastore' || nodeTypes.includes('Storage')) {
+                    const vmsOnStorage = dependentNodes.filter(n => n.vmware?.type === 'VirtualMachine');
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Storage failure impact:</span>
+                        <strong>${vmsOnStorage.length} VM${vmsOnStorage.length !== 1 ? 's' : ''}</strong> would lose disk access
+                        <div style="color: #8b949e; font-size: 0.75rem;">Recovery requires storage restoration</div>
+                    </div>`;
+                } else if (vm.type === 'VirtualMachine') {
+                    if (dependents > 0) {
+                        analysisHtml += `<div>
+                            <span style="color: #f85149;">VM failure impact:</span>
+                            <strong>${dependents}</strong> dependent service${dependents !== 1 ? 's' : ''}
+                        </div>`;
+                    }
+                    if (isSpof) {
+                        analysisHtml += `<div style="color: #d29922;">
+                            <strong>No redundancy</strong> - consider adding a replica VM
+                        </div>`;
+                    }
+                } else {
+                    // Cluster or vCenter level
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Blast radius:</span>
+                        <strong>${dependents}</strong> resource${dependents !== 1 ? 's' : ''} affected
+                    </div>`;
+                }
+
+            } else if (data.provider === 'kubernetes' || nodeTypes.some(t => ['Deployment', 'StatefulSet', 'Service', 'Pod'].includes(t))) {
+                // Kubernetes: Focus on replicas and namespace scope
+                const namespace = data.namespace || 'default';
+                const replicas = data.status?.replicas;
+
+                if (replicas) {
+                    const [running, desired] = replicas.split('/');
+                    if (running !== desired) {
+                        analysisHtml += `<div style="color: #d29922;">
+                            <strong>Degraded:</strong> ${running}/${desired} replicas running
+                        </div>`;
+                    } else {
+                        analysisHtml += `<div style="color: #3fb950;">
+                            <strong>Healthy:</strong> ${replicas} replicas
+                        </div>`;
+                    }
+                }
+
+                if (dependents > 0) {
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Failure impact:</span>
+                        <strong>${dependents}</strong> dependent resource${dependents !== 1 ? 's' : ''}
+                    </div>`;
+                }
+
+                analysisHtml += `<div>
+                    <span style="color: #8b949e;">Namespace:</span> ${namespace}
+                </div>`;
+
+            } else if (graphData.incident) {
+                // Incident cascade: Focus on failure propagation
+                const health = data.status?.health;
+                const error = data.status?.error;
+
+                if (health === 'failed' || health === 'degraded') {
+                    analysisHtml += `<div style="color: ${health === 'failed' ? '#f85149' : '#d29922'};">
+                        <strong>${health.toUpperCase()}</strong>${error ? `: ${error}` : ''}
+                    </div>`;
+                }
+
+                if (data.id === graphData.incident.root_cause) {
+                    analysisHtml += `<div style="color: #f85149; background: #f8514922; padding: 0.5rem; border-radius: 4px;">
+                        <strong>ROOT CAUSE</strong> of incident ${graphData.incident.id}
+                    </div>`;
+                } else if (dependents > 0 && health !== 'healthy') {
+                    analysisHtml += `<div>
+                        <span style="color: #d29922;">Cascade effect:</span>
+                        Failure propagated to <strong>${dependents}</strong> downstream
+                    </div>`;
+                }
+
+            } else if (graphData.pipeline || nodeTypes.some(t => ['BuildStage', 'TestStage', 'DeployStage'].includes(t))) {
+                // CI/CD: Focus on pipeline flow
+                if (dependents > 0) {
+                    analysisHtml += `<div>
+                        <span style="color: #d29922;">Pipeline blocker:</span>
+                        Failure blocks <strong>${dependents}</strong> downstream stage${dependents !== 1 ? 's' : ''}
+                    </div>`;
+                }
+
+                if (nodeTypes.includes('DeployStage')) {
+                    const env = nodeTypes.includes('Environment') ? 'environment' : 'deployment';
+                    analysisHtml += `<div>
+                        <span style="color: #8b949e;">Deployment gate:</span> Requires all upstream stages to pass
+                    </div>`;
+                }
+
+            } else if (graphData.mesh || nodeTypes.some(t => ['Microservice', 'APIGateway', 'ServiceMesh'].includes(t))) {
+                // Microservices: Focus on service chain
+                if (nodeTypes.includes('APIGateway') || nodeTypes.includes('ServiceMesh')) {
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Gateway failure:</span>
+                        <strong>All ${dependents} services</strong> lose external connectivity
+                    </div>`;
+                } else if (dependents > 0) {
+                    const directDeps = dependentNodes.filter(n => n.ancestors?.includes(data.id) && n.depth === depth + 1);
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Service chain impact:</span>
+                        ${directDeps.length} direct caller${directDeps.length !== 1 ? 's' : ''}, ${dependents} total affected
+                    </div>`;
+                }
+
+            } else {
+                // Default analysis for any graph
+                if (dependents > 0) {
+                    analysisHtml += `<div>
+                        <span style="color: #f85149;">Blast radius:</span>
+                        <strong>${dependents} node${dependents !== 1 ? 's' : ''}</strong> would fail
+                        ${dependentNodes.length > 0 ? `<div style="color: #8b949e; font-size: 0.75rem; margin-top: 0.15rem;">${dependentNodes.slice(0, 4).map(n => n.id).join(', ')}${dependentNodes.length > 4 ? '...' : ''}</div>` : ''}
+                    </div>`;
+                }
+            }
+
+            // Universal insights (shown for all sources when relevant)
+            if (isSpof && !analysisHtml.includes('redundan') && !analysisHtml.includes('SPOF')) {
+                analysisHtml += `<div style="color: #f85149;">
+                    <strong>Single Point of Failure</strong>
+                </div>`;
+            }
+
+            if (couplingPct > 50) {
+                analysisHtml += `<div style="color: #d29922;">
+                    <strong>High coupling:</strong> ${couplingPct}% depend on this
+                </div>`;
+            }
+
+            // Startup order (useful for ops graphs, less so for incidents)
+            if (!graphData.incident && depth > 0) {
+                analysisHtml += `<div>
+                    <span style="color: #8b949e;">Deploy order:</span> Layer ${depth}
+                </div>`;
+            }
+
+            analysisHtml += '</div>';
+            analysisEl.innerHTML = analysisHtml;
+            analysisSection.style.display = 'block';
 
             document.getElementById('node-details').classList.add('active');
         });
@@ -4555,6 +4828,12 @@ ${paramLines}
             source: 'import'
         };
     }
+
+    // Expose functions globally for demo script
+    window.init = init;
+    window.showImpact = showImpact;
+    window.clearImpactHighlight = clearImpactHighlight;
+    window.getCy = () => cy;
     </script>
 
     <!-- Search Modal -->
@@ -4696,14 +4975,16 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             align-items: center;
             justify-content: center;
             transition: opacity 0.5s;
+            pointer-events: auto;
         }
-        .demo-overlay.hidden { display: none; }
+        .demo-overlay.hidden { display: none; pointer-events: none; }
         .demo-overlay.fading { opacity: 0; pointer-events: none; }
         .demo-start {
             text-align: center;
             animation: fadeIn 0.5s;
             position: relative;
-            z-index: 1;
+            z-index: 10003;
+            pointer-events: auto;
         }
         .demo-start h1 {
             font-size: 4rem;
@@ -4729,7 +5010,8 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
-            z-index: 10;
+            z-index: 10003;
+            pointer-events: auto;
         }
         .demo-start-btn:hover {
             transform: scale(1.05);
@@ -4740,6 +5022,9 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             color: #6e7681;
             cursor: pointer;
             font-size: 0.9rem;
+            pointer-events: auto;
+            position: relative;
+            z-index: 10003;
         }
         .demo-skip:hover { color: #8b949e; }
         .demo-narration {
@@ -4828,12 +5113,15 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         {
             text: '<strong>Scenario:</strong> You need to do maintenance on the DNS server. What services will be affected?',
             action: () => {
-                cy.fit(50);
+                const cy = window.getCy();
+                if (cy) cy.fit(50);
             }
         },
         {
             text: 'This graph shows your infrastructure. Each box is a resource. Lines show what depends on what. Let\'s find out the impact.',
             action: () => {
+                const cy = window.getCy();
+                if (!cy) return;
                 const dnsNode = cy.$id('dns');
                 if (dnsNode.length) {
                     cy.animate({ center: { eles: dnsNode }, zoom: 1.2, duration: 500 });
@@ -4845,9 +5133,11 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             action: () => {
                 document.getElementById('impact-mode').checked = true;
                 setTimeout(() => {
+                    const cy = window.getCy();
+                    if (!cy) return;
                     const dnsNode = cy.$id('dns');
                     if (dnsNode.length) {
-                        showImpact('dns');
+                        window.showImpact('dns');
                     }
                 }, 400);
             }
@@ -4855,7 +5145,8 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         {
             text: '<span class="critical">5 services</span> turn red. That\'s your blast radius. You now know the impact <strong>before</strong> you touch anything.',
             action: () => {
-                cy.fit(50);
+                const cy = window.getCy();
+                if (cy) cy.fit(50);
             }
         },
         {
@@ -4870,7 +5161,7 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             action: () => {
                 document.querySelector('nav button[data-view="graph"]').click();
                 document.getElementById('impact-mode').checked = false;
-                clearImpactHighlight();
+                window.clearImpactHighlight();
             }
         }
     ];
@@ -4878,7 +5169,7 @@ cue export ./adapters/topdesk/ -e jsonld --out json
     function startDemoTour() {
         // Load operational example for demo (has cost + status data)
         document.getElementById('example-select').value = 'operational';
-        init('operational');
+        window.init('operational');
 
         setTimeout(() => {
             document.getElementById('demo-start').style.display = 'none';

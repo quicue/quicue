@@ -1,0 +1,175 @@
+{
+    "nodes": [
+        {
+            "id": "CI-SRV-001",
+            "types": {"Server": true, "ConfigurationItem": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 5,
+            "topdesk": {
+                "ci_number": "CI-SRV-001",
+                "name": "Production Database Server",
+                "category": "Server",
+                "subcategory": "Database",
+                "status": "In Use",
+                "location": "DC-01 Rack A4",
+                "owner": "IT Infrastructure"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-SRV-002",
+            "types": {"Server": true, "ConfigurationItem": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 3,
+            "topdesk": {
+                "ci_number": "CI-SRV-002",
+                "name": "Application Server 1",
+                "category": "Server",
+                "subcategory": "Application",
+                "status": "In Use",
+                "location": "DC-01 Rack A5",
+                "owner": "IT Infrastructure"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-APP-001",
+            "types": {"Application": true, "ConfigurationItem": true, "BusinessCritical": true},
+            "depth": 1,
+            "ancestors": ["CI-SRV-001", "CI-SRV-002"],
+            "dependents": 3,
+            "topdesk": {
+                "ci_number": "CI-APP-001",
+                "name": "ERP System",
+                "category": "Application",
+                "subcategory": "Business Application",
+                "status": "In Use",
+                "owner": "Finance Department",
+                "sla": "Gold"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-APP-002",
+            "types": {"Application": true, "ConfigurationItem": true},
+            "depth": 1,
+            "ancestors": ["CI-SRV-001"],
+            "dependents": 1,
+            "topdesk": {
+                "ci_number": "CI-APP-002",
+                "name": "HR Portal",
+                "category": "Application",
+                "subcategory": "Web Application",
+                "status": "In Use",
+                "owner": "HR Department",
+                "sla": "Silver"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-SVC-001",
+            "types": {"Service": true, "ConfigurationItem": true, "BusinessCritical": true},
+            "depth": 2,
+            "ancestors": ["CI-APP-001", "CI-SRV-001", "CI-SRV-002"],
+            "dependents": 1,
+            "topdesk": {
+                "ci_number": "CI-SVC-001",
+                "name": "Order Processing",
+                "category": "Business Service",
+                "status": "In Use",
+                "owner": "Operations",
+                "sla": "Gold"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-SVC-002",
+            "types": {"Service": true, "ConfigurationItem": true},
+            "depth": 2,
+            "ancestors": ["CI-APP-001", "CI-SRV-001", "CI-SRV-002"],
+            "dependents": 0,
+            "topdesk": {
+                "ci_number": "CI-SVC-002",
+                "name": "Financial Reporting",
+                "category": "Business Service",
+                "status": "In Use",
+                "owner": "Finance Department",
+                "sla": "Gold"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-SVC-003",
+            "types": {"Service": true, "ConfigurationItem": true},
+            "depth": 2,
+            "ancestors": ["CI-APP-002", "CI-SRV-001"],
+            "dependents": 0,
+            "topdesk": {
+                "ci_number": "CI-SVC-003",
+                "name": "Employee Self-Service",
+                "category": "Business Service",
+                "status": "In Use",
+                "owner": "HR Department",
+                "sla": "Silver"
+            },
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "CI-PRO-001",
+            "types": {"Process": true, "ConfigurationItem": true, "BusinessCritical": true},
+            "depth": 3,
+            "ancestors": ["CI-SVC-001", "CI-APP-001", "CI-SRV-001", "CI-SRV-002"],
+            "dependents": 0,
+            "topdesk": {
+                "ci_number": "CI-PRO-001",
+                "name": "Customer Order Fulfillment",
+                "category": "Business Process",
+                "status": "In Use",
+                "owner": "Operations Director",
+                "sla": "Platinum"
+            },
+            "status": {"health": "healthy"}
+        }
+    ],
+    "edges": [
+        {"source": "CI-SRV-001", "target": "CI-APP-001"},
+        {"source": "CI-SRV-002", "target": "CI-APP-001"},
+        {"source": "CI-SRV-001", "target": "CI-APP-002"},
+        {"source": "CI-APP-001", "target": "CI-SVC-001"},
+        {"source": "CI-APP-001", "target": "CI-SVC-002"},
+        {"source": "CI-APP-002", "target": "CI-SVC-003"},
+        {"source": "CI-SVC-001", "target": "CI-PRO-001"}
+    ],
+    "topology": {
+        "layer_0": ["CI-SRV-001", "CI-SRV-002"],
+        "layer_1": ["CI-APP-001", "CI-APP-002"],
+        "layer_2": ["CI-SVC-001", "CI-SVC-002", "CI-SVC-003"],
+        "layer_3": ["CI-PRO-001"]
+    },
+    "roots": ["CI-SRV-001", "CI-SRV-002"],
+    "leaves": ["CI-SVC-002", "CI-SVC-003", "CI-PRO-001"],
+    "spof": [
+        {"name": "CI-SRV-001", "dependents": 5, "types": ["Server"], "depth": 0},
+        {"name": "CI-APP-001", "dependents": 3, "types": ["Application", "BusinessCritical"], "depth": 1}
+    ],
+    "coupling": [
+        {"name": "CI-SRV-001", "dependents": 5, "percentage": 62.5},
+        {"name": "CI-APP-001", "dependents": 3, "percentage": 37.5}
+    ],
+    "metrics": {
+        "total": 8,
+        "maxDepth": 3,
+        "edges": 7,
+        "roots": 2,
+        "leaves": 3
+    },
+    "validation": {"valid": true, "issues": []},
+    "source": "topdesk",
+    "import": {
+        "method": "TopDesk CMDB Export",
+        "timestamp": "2026-01-15T10:00:00Z",
+        "filters": ["status=In Use", "category IN (Server, Application, Service, Process)"]
+    }
+}
