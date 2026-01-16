@@ -5169,19 +5169,17 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         }
     ];
 
-    function startDemoTour() {
+    async function startDemoTour() {
         // Load operational example for demo (has cost + status data)
         document.getElementById('example-select').value = 'operational';
-        window.init('operational');
+        await window.init('operational');
 
-        setTimeout(() => {
-            document.getElementById('demo-start').style.display = 'none';
-            document.getElementById('demo-overlay').classList.add('fading');
-            document.getElementById('demo-narration').classList.add('active');
-            document.getElementById('demo-step-total').textContent = demoSteps.length;
-            demoStep = 0;
-            showDemoStep();
-        }, 500);
+        document.getElementById('demo-start').style.display = 'none';
+        document.getElementById('demo-overlay').classList.add('fading');
+        document.getElementById('demo-narration').classList.add('active');
+        document.getElementById('demo-step-total').textContent = demoSteps.length;
+        demoStep = 0;
+        showDemoStep();
     }
 
     function showDemoStep() {
