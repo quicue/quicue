@@ -439,9 +439,10 @@ import "list"
 		},
 	]
 
-	// Format SPOF risks for export
+	// Format SPOF risks for export (filter out empty structs from conditional comprehension)
 	_spofList: [
-		for s in _spof.risks {
+		for s in _spof.risks
+		if s.name != _|_ {
 			name:       s.name
 			dependents: s.dependents
 			types:      [for t, _ in s.types {t}]
@@ -693,24 +694,23 @@ import "list"
 	_withDependents: [for c in _crit.ranked if c.dependents > 0 {c}]
 
 	// Check each for redundancy (same type, same layer)
+	// Note: let bindings and if condition at comprehension level
+	// excludes non-matching items (doesn't produce empty structs)
 	risks: [
-		for c in _withDependents {
-			let _r = Graph.resources[c.name]
-			let _types = _r["@type"]
-			let _depth = _r._depth
-
-			// Check if any type has a peer at same depth
-			let _hasPeer = len([
-				for t, _ in _types
-				for peer in _byType.groups[t]
-				if peer != c.name && Graph.resources[peer]._depth == _depth {peer},
-			]) > 0
-			if !_hasPeer {
-				name:       c.name
-				dependents: c.dependents
-				types:      _types
-				depth:      _depth
-			}
+		for c in _withDependents
+		let _r = Graph.resources[c.name]
+		let _types = _r["@type"]
+		let _depth = _r._depth
+		let _hasPeer = len([
+			for t, _ in _types
+			for peer in _byType.groups[t]
+			if peer != c.name && Graph.resources[peer]._depth == _depth {peer},
+		]) > 0
+		if !_hasPeer {
+			name:       c.name
+			dependents: c.dependents
+			types:      _types
+			depth:      _depth
 		},
 	]
 
