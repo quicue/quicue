@@ -2902,6 +2902,8 @@
     }
 
     function clearImpactHighlight() {
+        console.log('clearImpactHighlight called');
+        if (!cy) return;
         cy.nodes().removeClass('dimmed impact-highlight impact-source');
         cy.edges().removeClass('dimmed impact-highlight');
     }
@@ -5148,13 +5150,23 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         {
             text: 'Enable <strong>Impact Mode</strong> and click <strong>dns</strong>...',
             action: () => {
+                console.log('Step 3: setting impact-mode checkbox');
                 document.getElementById('impact-mode').checked = true;
                 setTimeout(() => {
+                    console.log('Step 3: timeout fired, calling showImpact');
                     const cy = window.getCy();
-                    if (!cy) return;
+                    console.log('Step 3: cy =', cy);
+                    if (!cy) {
+                        console.error('Step 3: cy is null!');
+                        return;
+                    }
                     const dnsNode = cy.$id('dns');
+                    console.log('Step 3: dnsNode =', dnsNode, 'length =', dnsNode.length);
                     if (dnsNode.length) {
+                        console.log('Step 3: calling window.showImpact("dns")');
                         window.showImpact('dns');
+                    } else {
+                        console.error('Step 3: dns node not found in graph!');
                     }
                 }, 400);
             }
