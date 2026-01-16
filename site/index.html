@@ -4694,6 +4694,8 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         .demo-start {
             text-align: center;
             animation: fadeIn 0.5s;
+            position: relative;
+            z-index: 1;
         }
         .demo-start h1 {
             font-size: 4rem;
@@ -4718,6 +4720,8 @@ cue export ./adapters/topdesk/ -e jsonld --out json
             border-radius: 8px;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            z-index: 10;
         }
         .demo-start-btn:hover {
             transform: scale(1.05);
