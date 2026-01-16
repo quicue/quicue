@@ -2852,11 +2852,25 @@
 
     // Impact highlighting: show all nodes affected if target fails
     function showImpact(targetId) {
+        console.log('showImpact called with:', targetId);
+        console.log('graphData:', graphData);
+        console.log('cy:', cy);
+
+        if (!graphData || !graphData.nodes) {
+            console.error('showImpact: graphData.nodes not available');
+            return;
+        }
+        if (!cy) {
+            console.error('showImpact: cy not available');
+            return;
+        }
+
         clearImpactHighlight();
 
         // Find all nodes that have targetId in their ancestors
         const affected = graphData.nodes.filter(n => n.ancestors && n.ancestors.includes(targetId));
         const affectedIds = affected.map(n => n.id);
+        console.log('affected nodes:', affectedIds);
 
         // Dim everything first
         cy.nodes().addClass('dimmed');
@@ -5170,9 +5184,11 @@ cue export ./adapters/topdesk/ -e jsonld --out json
     ];
 
     async function startDemoTour() {
+        console.log('startDemoTour: starting');
         // Load operational example for demo (has cost + status data)
         document.getElementById('example-select').value = 'operational';
         await window.init('operational');
+        console.log('startDemoTour: init completed, cy=', window.getCy());
 
         document.getElementById('demo-start').style.display = 'none';
         document.getElementById('demo-overlay').classList.add('fading');
