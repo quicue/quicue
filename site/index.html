@@ -5186,14 +5186,15 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         'incident-cascade': {
             title: 'Incident Response',
             example: 'incident-cascade',
-            target: 'core-switch',
+            target: 'api-gateway',
             steps: [
-                { text: '<strong>P1 INCIDENT:</strong> Multiple services are down. Where\'s the root cause?' },
-                { text: 'This is a <span class="critical">live incident</span>. Red nodes are failing. The cascade started somewhere...', zoomTo: 'core-switch' },
-                { text: 'The <strong>core-switch</strong> is the root cause. Click it to see the full blast radius.', impact: 'core-switch' },
-                { text: '<span class="critical">8 services affected</span> from one switch failure. This is why we track dependencies.' },
-                { text: 'quicue identified <strong>core-switch</strong> as a critical SPOF <em>before</em> the incident.', showAnalysis: true },
-                { text: '<strong>Post-mortems write themselves</strong> when you have the dependency graph.' }
+                { text: '<strong>P1 INCIDENT:</strong> Payment processing is down. Customers can\'t checkout.' },
+                { text: 'PagerDuty says <strong>payment-service</strong> is failing. But is that the root cause?', zoomTo: 'payment-service' },
+                { text: 'Click <strong>api-gateway</strong> - it\'s showing 50% errors and sits upstream...', impact: 'api-gateway' },
+                { text: 'The gateway affects payment AND order services. But look at <em>its</em> ancestors in the sidebar...' },
+                { text: 'Trace up: gateway depends on <strong>database, cache, auth</strong> - all degraded. They depend on <strong>dns-cluster</strong>. DNS depends on...', zoomTo: 'core-switch' },
+                { text: '<strong>core-switch</strong> - link flapping. <em>That\'s</em> the root cause. Not payment-service.', showAnalysis: true },
+                { text: '<strong>Fix the switch, fix everything.</strong> Without the graph, you\'d be debugging payment-service for hours.' }
             ]
         },
         'microservices-mesh': {
