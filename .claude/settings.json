@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'input=$(cat); cmd=$(echo \"$input\" | jq -r .tool_input.command); if [[ \"$cmd\" == git\\ push* ]]; then cd /home/mthdn/repos/quicue && count=$(git rev-list --count github/main..HEAD 2>/dev/null || echo 0) && [ \"$count\" -gt 1 ] && git reset --soft github/main && git commit -m \"$(git log --format=%B github/main..ORIG_HEAD | head -1)\" 2>/dev/null; fi; exit 0'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'input=$(cat); cmd=$(echo \"$input\" | jq -r .tool_input.command); if [[ \"$cmd\" == git\\ push*github* ]]; then gh run list -R quicue/quicue --json databaseId -q \".[].databaseId\" 2>/dev/null | head -20 | xargs -I{} gh run delete {} -R quicue/quicue 2>/dev/null; fi; exit 0'"
+          }
+        ]
+      }
+    ]
+  }
+}
