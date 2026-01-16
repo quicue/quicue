@@ -4970,6 +4970,17 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         <div class="demo-start" id="demo-start">
             <h1>quicue</h1>
             <p>Infrastructure Dependency Graphs</p>
+            <select id="demo-scenario-select" class="demo-scenario-select">
+                <option value="operational">Infrastructure Maintenance</option>
+                <option value="incident-cascade">Incident Response</option>
+                <option value="microservices-mesh">Service Mesh Analysis</option>
+                <option value="cicd-pipeline">Pipeline Dependencies</option>
+                <option value="topdesk-import">CMDB Impact Analysis</option>
+                <option value="vmware-import">VMware Infrastructure</option>
+                <option value="cab-datacenter">Change Advisory Board</option>
+                <option value="kubernetes-cluster">Kubernetes Blast Radius</option>
+                <option value="terraform-state">Terraform Drift Detection</option>
+            </select>
             <button class="demo-start-btn" onclick="startDemoTour()">Start Demo</button>
             <div class="demo-skip" onclick="skipDemo()">or explore on your own</div>
         </div>
@@ -5020,7 +5031,30 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         .demo-start p {
             font-size: 1.5rem;
             color: #8b949e;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        .demo-scenario-select {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto 1.5rem;
+            padding: 0.75rem 1rem;
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+        }
+        .demo-scenario-select:hover {
+            background: #30363d;
+            border-color: #58a6ff;
+        }
+        .demo-scenario-select:focus {
+            outline: none;
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
         }
         .demo-start-btn {
             background: linear-gradient(135deg, #238636, #2ea043);
@@ -5131,79 +5165,178 @@ cue export ./adapters/topdesk/ -e jsonld --out json
     <script>
     let demoStep = 0;
     let demoPointer = null;
-    const demoSteps = [
-        {
-            text: '<strong>Scenario:</strong> You need to do maintenance on the DNS server. What services will be affected?',
-            action: () => {
-                const cy = window.getCy();
-                if (cy) cy.fit(50);
-            }
+    let currentScenario = 'operational';
+    let demoSteps = [];
+
+    // Custom demo scenarios for each example
+    const demoScenarios = {
+        operational: {
+            title: 'Infrastructure Maintenance',
+            example: 'operational',
+            target: 'dns',
+            steps: [
+                { text: '<strong>Scenario:</strong> You need to do maintenance on the DNS server. What services will be affected?' },
+                { text: 'This graph shows your infrastructure. Each box is a resource. Lines show dependencies.', zoomTo: 'dns' },
+                { text: 'Enable <strong>Impact Mode</strong> and click <strong>dns</strong>...', impact: 'dns' },
+                { text: '<span class="critical">5 services</span> turn red. That\'s your <strong>blast radius</strong> - everything that breaks if DNS goes down.' },
+                { text: 'The <strong>Analysis</strong> tab auto-detects single points of failure and coupling hotspots.', showAnalysis: true },
+                { text: '<strong>Know what breaks before you break it.</strong> Now explore on your own.' }
+            ]
         },
-        {
-            text: 'This graph shows your infrastructure. Each box is a resource. Lines show what depends on what. Let\'s find out the impact.',
+        'incident-cascade': {
+            title: 'Incident Response',
+            example: 'incident-cascade',
+            target: 'core-switch',
+            steps: [
+                { text: '<strong>P1 INCIDENT:</strong> Multiple services are down. Where\'s the root cause?' },
+                { text: 'This is a <span class="critical">live incident</span>. Red nodes are failing. The cascade started somewhere...', zoomTo: 'core-switch' },
+                { text: 'The <strong>core-switch</strong> is the root cause. Click it to see the full blast radius.', impact: 'core-switch' },
+                { text: '<span class="critical">8 services affected</span> from one switch failure. This is why we track dependencies.' },
+                { text: 'quicue identified <strong>core-switch</strong> as a critical SPOF <em>before</em> the incident.', showAnalysis: true },
+                { text: '<strong>Post-mortems write themselves</strong> when you have the dependency graph.' }
+            ]
+        },
+        'microservices-mesh': {
+            title: 'Service Mesh Analysis',
+            example: 'microservices-mesh',
+            target: 'api-gateway',
+            steps: [
+                { text: '<strong>Scenario:</strong> Deploying a new API Gateway version. What\'s the rollback risk?' },
+                { text: 'This is your service mesh with <strong>12 microservices</strong>. The gateway is the entry point.', zoomTo: 'api-gateway' },
+                { text: 'Click <strong>api-gateway</strong> to see its blast radius...', impact: 'api-gateway' },
+                { text: '<span class="critical">10 services</span> depend on the gateway. That\'s <strong>83% of your mesh</strong>.' },
+                { text: 'The coupling analysis shows your gateway has the highest dependency count.', showAnalysis: true },
+                { text: '<strong>Blue-green deploys are essential</strong> for high-coupling services like this.' }
+            ]
+        },
+        'cicd-pipeline': {
+            title: 'Pipeline Dependencies',
+            example: 'cicd-pipeline',
+            target: 'build-stage',
+            steps: [
+                { text: '<strong>Scenario:</strong> The build server is slow. What\'s blocked?' },
+                { text: 'This is your CI/CD pipeline from git to production. <strong>6 deployment layers</strong>.', zoomTo: 'build-stage' },
+                { text: 'Click <strong>build-stage</strong> to see what depends on it...', impact: 'build-stage' },
+                { text: '<span class="critical">Everything downstream is blocked.</span> No builds = no deploys.' },
+                { text: 'The pipeline view shows the critical path. Build is a <strong>single point of failure</strong>.', showAnalysis: true },
+                { text: '<strong>Consider parallel build runners</strong> to reduce coupling.' }
+            ]
+        },
+        'topdesk-import': {
+            title: 'CMDB Impact Analysis',
+            example: 'topdesk-import',
+            target: 'erp-database',
+            steps: [
+                { text: '<strong>Change Request:</strong> Database maintenance window. What SLAs are at risk?' },
+                { text: 'This data came from <strong>TopDesk CMDB</strong>. quicue computed the dependencies.', zoomTo: 'erp-database' },
+                { text: 'Click <strong>erp-database</strong> to see business impact...', impact: 'erp-database' },
+                { text: '<span class="critical">Business-critical services affected.</span> Check the SLA commitments in the sidebar.' },
+                { text: 'quicue unifies CMDB data with <strong>computed blast radius</strong> - TopDesk alone can\'t do this.', showAnalysis: true },
+                { text: '<strong>Now you can approve changes</strong> with full impact visibility.' }
+            ]
+        },
+        'vmware-import': {
+            title: 'VMware Infrastructure',
+            example: 'vmware-import',
+            target: 'esxi-host-01',
+            steps: [
+                { text: '<strong>Scenario:</strong> ESXi host needs patching. What VMs need live migration?' },
+                { text: 'This is your vSphere hierarchy: cluster, hosts, VMs, datastores.', zoomTo: 'esxi-host-01' },
+                { text: 'Click <strong>esxi-host-01</strong> to see hosted workloads...', impact: 'esxi-host-01' },
+                { text: '<span class="critical">Multiple VMs affected.</span> Plan your vMotion sequence.' },
+                { text: 'quicue computed this from vSphere API data. It knows the full hierarchy.', showAnalysis: true },
+                { text: '<strong>Maintenance windows are safer</strong> when you see the full picture.' }
+            ]
+        },
+        'cab-datacenter': {
+            title: 'Change Advisory Board',
+            example: 'cab-datacenter',
+            target: 'hypervisor-01',
+            steps: [
+                { text: '<strong>CAB Review:</strong> Hypervisor firmware update submitted for approval.' },
+                { text: 'This is your datacenter. Hypervisors host VMs that run your services.', zoomTo: 'hypervisor-01' },
+                { text: 'Click <strong>hypervisor-01</strong> to see what\'s at risk...', impact: 'hypervisor-01' },
+                { text: '<span class="critical">Production VMs affected.</span> Is this change worth the risk?' },
+                { text: 'quicue helps CAB make <strong>informed decisions</strong> with real dependency data.', showAnalysis: true },
+                { text: '<strong>Approve or reject with confidence.</strong> No more guessing.' }
+            ]
+        },
+        'kubernetes-cluster': {
+            title: 'Kubernetes Blast Radius',
+            example: 'kubernetes-cluster',
+            target: 'postgres-db',
+            steps: [
+                { text: '<strong>Scenario:</strong> Database pod is OOMKilled. What\'s the impact?' },
+                { text: 'This is your K8s cluster: namespaces, deployments, services, and their dependencies.', zoomTo: 'postgres-db' },
+                { text: 'Click <strong>postgres-db</strong> to see dependent services...', impact: 'postgres-db' },
+                { text: '<span class="critical">Multiple services affected.</span> Check replica counts in the sidebar.' },
+                { text: 'quicue tracks K8s dependencies that kubectl can\'t show you.', showAnalysis: true },
+                { text: '<strong>Set resource limits wisely</strong> on high-impact workloads.' }
+            ]
+        },
+        'terraform-state': {
+            title: 'Terraform Drift Detection',
+            example: 'terraform-state',
+            target: 'vpc-main',
+            steps: [
+                { text: '<strong>Scenario:</strong> Planning to destroy the VPC. What else gets deleted?' },
+                { text: 'This graph is built from <strong>Terraform state</strong>. Real infrastructure, real dependencies.', zoomTo: 'vpc-main' },
+                { text: 'Click <strong>vpc-main</strong> to see cascading deletes...', impact: 'vpc-main' },
+                { text: '<span class="critical">Everything in the VPC is destroyed.</span> Terraform plan doesn\'t show this clearly.' },
+                { text: 'quicue makes implicit Terraform dependencies <strong>explicit and visible</strong>.', showAnalysis: true },
+                { text: '<strong>terraform destroy is safer</strong> when you see the blast radius.' }
+            ]
+        }
+    };
+
+    // Build demo steps from scenario
+    function buildDemoSteps(scenarioKey) {
+        const scenario = demoScenarios[scenarioKey] || demoScenarios.operational;
+        return scenario.steps.map((step, i) => ({
+            text: step.text,
             action: () => {
                 const cy = window.getCy();
                 if (!cy) return;
-                const dnsNode = cy.$id('dns');
-                if (dnsNode.length) {
-                    cy.animate({ center: { eles: dnsNode }, zoom: 1.2, duration: 500 });
+
+                if (i === 0) {
+                    cy.fit(50);
+                }
+                if (step.zoomTo) {
+                    const node = cy.$id(step.zoomTo);
+                    if (node.length) {
+                        cy.animate({ center: { eles: node }, zoom: 1.2, duration: 500 });
+                    }
+                }
+                if (step.impact) {
+                    document.getElementById('impact-mode').checked = true;
+                    setTimeout(() => window.showImpact(step.impact), 400);
+                }
+                if (step.showAnalysis) {
+                    document.querySelector('nav button[data-view="analysis"]').click();
+                    const spof = document.getElementById('analysis-spof');
+                    if (spof) spof.classList.add('expanded');
+                }
+                if (i === scenario.steps.length - 1) {
+                    // Last step - return to graph view
+                    document.querySelector('nav button[data-view="graph"]').click();
+                    document.getElementById('impact-mode').checked = false;
+                    window.clearImpactHighlight();
                 }
             }
-        },
-        {
-            text: 'Enable <strong>Impact Mode</strong> and click <strong>dns</strong>...',
-            action: () => {
-                console.log('Step 3: setting impact-mode checkbox');
-                document.getElementById('impact-mode').checked = true;
-                setTimeout(() => {
-                    console.log('Step 3: timeout fired, calling showImpact');
-                    const cy = window.getCy();
-                    console.log('Step 3: cy =', cy);
-                    if (!cy) {
-                        console.error('Step 3: cy is null!');
-                        return;
-                    }
-                    const dnsNode = cy.$id('dns');
-                    console.log('Step 3: dnsNode =', dnsNode, 'length =', dnsNode.length);
-                    if (dnsNode.length) {
-                        console.log('Step 3: calling window.showImpact("dns")');
-                        window.showImpact('dns');
-                    } else {
-                        console.error('Step 3: dns node not found in graph!');
-                    }
-                }, 400);
-            }
-        },
-        {
-            text: '<span class="critical">5 services</span> turn red. That\'s your blast radius. You now know the impact <strong>before</strong> you touch anything.',
-            action: () => {
-                const cy = window.getCy();
-                if (cy) cy.fit(50);
-            }
-        },
-        {
-            text: 'quicue also auto-detects risks. The <strong>Analysis</strong> tab shows single points of failure and coupling hotspots.',
-            action: () => {
-                document.querySelector('nav button[data-view="analysis"]').click();
-                document.getElementById('analysis-spof').classList.add('expanded');
-            }
-        },
-        {
-            text: 'That\'s it. <strong>Know what breaks before you break it.</strong> Now explore on your own.',
-            action: () => {
-                document.querySelector('nav button[data-view="graph"]').click();
-                document.getElementById('impact-mode').checked = false;
-                window.clearImpactHighlight();
-            }
-        }
-    ];
+        }));
+    }
 
-    async function startDemoTour() {
-        console.log('startDemoTour: starting');
-        // Load operational example for demo (has cost + status data)
-        document.getElementById('example-select').value = 'operational';
-        await window.init('operational');
-        console.log('startDemoTour: init completed, cy=', window.getCy());
+    async function startDemoTour(scenarioKey = null) {
+        // Use selected scenario or default to operational
+        currentScenario = scenarioKey || document.getElementById('demo-scenario-select')?.value || 'operational';
+        const scenario = demoScenarios[currentScenario] || demoScenarios.operational;
+
+        // Build steps for this scenario
+        demoSteps = buildDemoSteps(currentScenario);
+
+        // Load the example
+        document.getElementById('example-select').value = scenario.example;
+        await window.init(scenario.example);
 
         document.getElementById('demo-start').style.display = 'none';
         document.getElementById('demo-overlay').classList.add('fading');
