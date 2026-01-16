@@ -185,12 +185,96 @@ VALIDATE_EOF
         ;;
 
     eval)
-        # quicue eval [path] [expr]
-        path="${2:-graph-patterns}"
-        expr="${3:-output}"
+        # quicue eval [path] [expr] [--precompute] [--compare]
+        shift
+        path="graph-patterns"
+        expr="output"
+        precompute=false
+        compare=false
+
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --precompute|-p)
+                    precompute=true
+                    shift
+                    ;;
+                --compare)
+                    compare=true
+                    shift
+                    ;;
+                -e|--expr)
+                    expr="$2"
+                    shift 2
+                    ;;
+                -*)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+                *)
+                    if [[ "$path" == "graph-patterns" ]]; then
+                        path="$1"
+                    else
+                        expr="$1"
+                    fi
+                    shift
+                    ;;
+            esac
+        done
+
         resolved=$(resolve_example "$path")
         cd "$QUICUE_DIR"
-        run cue eval "./${resolved}" -e "$expr"
+
+        if $compare; then
+            # Run both modes and compare
+            echo "=== CUE-only mode ===" >&2
+            cue_result=$(cue eval "./${resolved}" -e "$expr" --out json 2>/dev/null)
+
+            echo "=== Hybrid mode (Python precompute) ===" >&2
+            depths=$(cue export "./${resolved}" -e '_resources' --out json 2>/dev/null | python3 "$SCRIPT_DIR/precompute.py")
+
+            # Create temp file with precomputed depths
+            tmpfile="${resolved}/quicue_precompute_$$.cue"
+            trap "rm -f '$tmpfile'" EXIT
+            cat > "$tmpfile" << PRECOMPUTE_EOF
+package main
+
+_precomputed: $depths
+infra: {Precomputed: _precomputed}
+PRECOMPUTE_EOF
+
+            hybrid_result=$(cue eval "./${resolved}" -e "$expr" --out json 2>/dev/null)
+            rm -f "$tmpfile"
+
+            # Compare
+            echo "=== Comparison ===" >&2
+            if diff -q <(echo "$cue_result" | jq -S .) <(echo "$hybrid_result" | jq -S .) >/dev/null 2>&1; then
+                echo "MATCH: Both modes produce identical results" >&2
+                echo "$cue_result"
+            else
+                echo "DIFFERENCE DETECTED:" >&2
+                diff --color=auto <(echo "$cue_result" | jq -S .) <(echo "$hybrid_result" | jq -S .) || true
+                exit 1
+            fi
+
+        elif $precompute; then
+            # Hybrid mode: Python computes depth, CUE validates
+            depths=$(cue export "./${resolved}" -e '_resources' --out json 2>/dev/null | python3 "$SCRIPT_DIR/precompute.py")
+
+            tmpfile="${resolved}/quicue_precompute_$$.cue"
+            trap "rm -f '$tmpfile'" EXIT
+            cat > "$tmpfile" << PRECOMPUTE_EOF
+package main
+
+_precomputed: $depths
+infra: {Precomputed: _precomputed}
+PRECOMPUTE_EOF
+
+            run cue eval "./${resolved}" -e "$expr"
+            rm -f "$tmpfile"
+        else
+            # CUE-only mode (default)
+            run cue eval "./${resolved}" -e "$expr"
+        fi
         ;;
     export)
         # quicue export [path]
@@ -234,7 +318,10 @@ Analysis:
   quicue validate [-f path]   Check graph for errors (missing deps, cycles)
 
 General:
-  quicue eval [path] [expr]   Evaluate CUE (default: graph-patterns, output)
+  quicue eval [path] [-e expr] [--precompute] [--compare]
+                              Evaluate CUE (default: graph-patterns, output)
+                              --precompute: use Python for depth computation
+                              --compare: run both modes and diff results
   quicue export [path]        Export as JSON (default: jsonld-export)
   quicue vet [path]           Validate CUE syntax (default: all)
   quicue list                 List bundled examples

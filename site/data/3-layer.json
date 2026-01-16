@@ -91,12 +91,45 @@
             "pve-node-1"
         ]
     },
+    "spof": [
+        {
+            "name": "dns-server",
+            "dependents": 1,
+            "types": [
+                "DNSServer",
+                "LXCContainer"
+            ],
+            "depth": 1
+        },
+        {
+            "name": "pve-node-1",
+            "dependents": 2,
+            "types": [
+                "VirtualizationPlatform"
+            ],
+            "depth": 0
+        }
+    ],
+    "coupling": [
+        {
+            "name": "dns-server",
+            "dependents": 1,
+            "percentage": 33.33333333333333333333333333333333
+        },
+        {
+            "name": "pve-node-1",
+            "dependents": 2,
+            "percentage": 66.66666666666666666666666666666667
+        }
+    ],
     "metrics": {
         "total": 3,
         "maxDepth": 2,
         "edges": 2,
         "roots": 1,
-        "leaves": 1
+        "leaves": 1,
+        "spofCount": 2,
+        "couplingCount": 2
     },
     "validation": {
         "valid": true,

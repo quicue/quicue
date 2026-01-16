@@ -145,12 +145,53 @@
             "monitoring"
         ]
     },
+    "spof": [
+        {
+            "name": "pve-node",
+            "dependents": 4,
+            "types": [
+                "VirtualizationPlatform"
+            ],
+            "depth": 0
+        },
+        {
+            "name": "dns-primary",
+            "dependents": 3,
+            "types": [
+                "DNSServer",
+                "CriticalInfra"
+            ],
+            "depth": 1
+        },
+        {
+            "name": "reverse-proxy",
+            "dependents": 1,
+            "types": [
+                "ReverseProxy"
+            ],
+            "depth": 2
+        }
+    ],
+    "coupling": [
+        {
+            "name": "pve-node",
+            "dependents": 4,
+            "percentage": 80
+        },
+        {
+            "name": "dns-primary",
+            "dependents": 3,
+            "percentage": 60
+        }
+    ],
     "metrics": {
         "total": 5,
         "maxDepth": 3,
         "edges": 5,
         "roots": 1,
-        "leaves": 2
+        "leaves": 2,
+        "spofCount": 3,
+        "couplingCount": 2
     },
     "validation": {
         "valid": true,

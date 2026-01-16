@@ -56,6 +56,9 @@ import "list"
 //   infra: #InfraGraph & {Input: _raw}
 //   // Now: infra.resources.dns._depth, infra.resources.dns._ancestors, etc.
 //
+// For large graphs, pre-compute depth with Python:
+//   infra: #InfraGraph & {Input: _raw, Precomputed: {depth: {"dns": 0, ...}}}
+//
 #InfraGraph: {
 	// Input: string-based resources (portable, can come from JSON)
 	Input: [string]: {
@@ -63,6 +66,12 @@ import "list"
 		"@type": {[string]: true}
 		depends_on?: {[string]: true}
 		...
+	}
+
+	// Optional: pre-computed depth values from Python (for large graphs)
+	// When provided, skips expensive CUE depth recursion
+	Precomputed?: {
+		depth: [string]: int
 	}
 
 	// Validation: all dependency references must exist in Input
@@ -88,8 +97,13 @@ import "list"
 			let _depsList = [for d, _ in _deps {d}]
 
 			(rname): r & {
-				// Depth: 0 for roots, max(parent depths) + 1 otherwise
+				// Depth: use pre-computed if available, else compute
+				// Pre-computed: O(1) lookup from Python topological sort
+				// Computed: O(n) recursive access (expensive for large graphs)
 				_depth: [
+					if Precomputed != _|_ && Precomputed.depth[rname] != _|_ {
+						Precomputed.depth[rname]
+					},
 					if _hasDeps {list.Max([for d, _ in _deps {resources[d]._depth}]) + 1},
 					0,
 				][0]
@@ -379,6 +393,7 @@ import "list"
 	_criticality: #CriticalityRank & {"Graph": Graph}
 	_byType: #GroupByType & {"Graph": Graph}
 	_export: #ExportGraph & {"Graph": Graph}
+	_spof: #SinglePointsOfFailure & {"Graph": Graph}
 
 	// Build edges from raw resources
 	_edges: list.FlattenN([
@@ -424,6 +439,28 @@ import "list"
 		},
 	]
 
+	// Format SPOF risks for export
+	_spofList: [
+		for s in _spof.risks {
+			name:       s.name
+			dependents: s.dependents
+			types:      [for t, _ in s.types {t}]
+			depth:      s.depth
+		},
+	]
+
+	// Coupling points: resources where >30% of graph depends on them
+	_totalNodes: len(_nodes)
+	_couplingThreshold: _totalNodes * 3 / 10 // 30%
+	_couplingList: [
+		for rname, deps in _dependentsMap
+		if len(deps) >= _couplingThreshold {
+			name:       rname
+			dependents: len(deps)
+			percentage: len(deps) * 100 / _totalNodes
+		},
+	]
+
 	// The output data structure
 	data: {
 		nodes:       _nodes
@@ -433,12 +470,16 @@ import "list"
 		leaves:      Graph.leaves
 		criticality: _critList
 		byType:      _byType.groups
+		spof:        _spofList
+		coupling:    _couplingList
 		metrics: {
 			total:    len(_nodes)
 			maxDepth: _export.summary.max_depth
 			edges:    len(_edges)
 			roots:    len(Graph.roots)
 			leaves:   len(Graph.leaves)
+			spofCount: len(_spofList)
+			couplingCount: len(_couplingList)
 		}
 		validation: {
 			valid: Graph.valid
