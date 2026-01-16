@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>quicue - Full Demo</title>
+    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #cy {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 400px;
+            bottom: 0;
+            background: #161b22;
+        }
+        .header {
+            height: 60px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            gap: 1rem;
+        }
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+        .header h1 span { color: #8b949e; font-weight: 400; }
+        .progress-bar {
+            flex: 1;
+            max-width: 400px;
+            height: 4px;
+            background: #30363d;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #238636, #3fb950);
+            transition: width 0.3s;
+        }
+        .step-counter {
+            font-size: 0.85rem;
+            color: #8b949e;
+        }
+        .sidebar {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            width: 400px;
+            bottom: 0;
+            background: #0d1117;
+            border-left: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+        }
+        .narration {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        .narration h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #58a6ff;
+        }
+        .narration p {
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+        .narration strong { color: #fff; }
+        .narration .highlight { color: #3fb950; }
+        .narration .warning { color: #d29922; }
+        .narration .critical { color: #f85149; }
+        .narration code {
+            background: #21262d;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .narration ul {
+            margin: 1rem 0;
+            padding-left: 1.5rem;
+        }
+        .narration li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+        .controls {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #30363d;
+            display: flex;
+            gap: 0.75rem;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: 1px solid #30363d;
+            background: #21262d;
+            color: #c9d1d9;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #30363d; }
+        .btn.primary {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+            flex: 1;
+        }
+        .btn.primary:hover { background: #2ea043; }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .info-panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid #21262d;
+            font-size: 0.9rem;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #8b949e; }
+        .info-value { font-family: monospace; }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge.spof { background: #da363333; color: #f85149; }
+        .badge.coupling { background: #d2992233; color: #d29922; }
+        .badge.ok { background: #23863633; color: #3fb950; }
+        .exit-link {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            color: #8b949e;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .exit-link:hover { color: #c9d1d9; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>quicue <span>/ full demo</span></h1>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="step-counter"><span id="current-step">1</span> / <span id="total-steps">12</span></div>
+        <a href="index.html" class="exit-link">Exit to Explorer</a>
+    </div>
+
+    <div id="cy"></div>
+
+    <div class="sidebar">
+        <div class="narration" id="narration"></div>
+        <div class="controls">
+            <button class="btn" id="btn-prev" onclick="prevStep()">Back</button>
+            <button class="btn primary" id="btn-next" onclick="nextStep()">Next</button>
+        </div>
+    </div>
+
+    <script>
+    let cy = null;
+    let currentStep = 0;
+    let graphData = null;
+
+    const demoSteps = [
+        {
+            title: "The Problem",
+            content: `
+                <p><strong>Infrastructure changes break things.</strong></p>
+                <p>You've seen it happen:</p>
+                <ul>
+                    <li>"We updated the cache config... and auth stopped working"</li>
+                    <li>"DNS maintenance took down 16 services"</li>
+                    <li>"Nobody knew the API depended on that queue"</li>
+                </ul>
+                <p>The knowledge of <strong>what depends on what</strong> lives in people's heads, outdated wikis, or nowhere at all.</p>
+                <p>quicue fixes this.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                cy.fit(50);
+            }
+        },
+        {
+            title: "The Graph",
+            content: `
+                <p>This is your infrastructure as a <strong>dependency graph</strong>.</p>
+                <p>Each node is a resource. Each edge means "depends on".</p>
+                <div class="info-panel">
+                    <div class="info-row"><span class="info-label">Resources</span><span class="info-value">8</span></div>
+                    <div class="info-row"><span class="info-label">Dependencies</span><span class="info-value">10</span></div>
+                    <div class="info-row"><span class="info-label">Max depth</span><span class="info-value">4 layers</span></div>
+                </div>
+                <p>The color shows <strong>criticality</strong> - redder nodes have more things depending on them.</p>
+            `,
+            action: () => {
+                cy.fit(50);
+            }
+        },
+        {
+            title: "Impact Analysis",
+            content: `
+                <p>The core feature: <strong>blast radius analysis</strong>.</p>
+                <p>Question: "If the DNS server goes down, what breaks?"</p>
+                <p>Watch what happens when we simulate a DNS failure...</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                const dns = cy.$id('dns');
+                if (dns.length) {
+                    cy.animate({ center: { eles: dns }, zoom: 1.3, duration: 500 });
+                }
+            }
+        },
+        {
+            title: "Blast Radius",
+            content: `
+                <p><span class="critical">5 services</span> would fail if DNS goes down:</p>
+                <ul>
+                    <li><code>db</code> - can't resolve database hostname</li>
+                    <li><code>cache</code> - can't reach cache cluster</li>
+                    <li><code>api</code> - depends on db and cache</li>
+                    <li><code>web</code> - depends on api</li>
+                    <li><code>worker</code> - depends on db and cache</li>
+                </ul>
+                <p>You now know the impact <strong>before</strong> you touch anything.</p>
+            `,
+            action: () => {
+                showImpact('dns');
+                cy.fit(50);
+            }
+        },
+        {
+            title: "Single Points of Failure",
+            content: `
+                <p>quicue automatically detects <strong>SPOFs</strong> - resources with no redundant peer.</p>
+                <div class="info-panel">
+                    <div class="info-row"><span class="info-label">pve-node</span><span class="badge spof">SPOF</span></div>
+                    <div class="info-row"><span class="info-label">dns</span><span class="badge spof">SPOF</span></div>
+                    <div class="info-row"><span class="info-label">db</span><span class="badge spof">SPOF</span></div>
+                    <div class="info-row"><span class="info-label">cache</span><span class="badge spof">SPOF</span></div>
+                </div>
+                <p>A SPOF is any resource that, if it fails, has no backup at its layer.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                // Highlight SPOFs
+                ['pve-node', 'dns', 'db', 'cache'].forEach(id => {
+                    cy.$id(id).addClass('impact-highlight');
+                });
+            }
+        },
+        {
+            title: "Coupling Analysis",
+            content: `
+                <p><strong>Coupling points</strong> are resources that many others depend on.</p>
+                <div class="info-panel">
+                    <div class="info-row"><span class="info-label">pve-node</span><span class="info-value">87.5% depend on this</span></div>
+                    <div class="info-row"><span class="info-label">dns</span><span class="info-value">62.5% depend on this</span></div>
+                </div>
+                <p>High coupling = high risk. These deserve extra monitoring, redundancy, or careful change management.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                cy.$id('pve-node').addClass('impact-source');
+                cy.$id('dns').addClass('impact-highlight');
+            }
+        },
+        {
+            title: "Topology Layers",
+            content: `
+                <p>The graph computes <strong>deployment order</strong> automatically.</p>
+                <div class="info-panel">
+                    <div class="info-row"><span class="info-label">Layer 0</span><span class="info-value">pve-node (start here)</span></div>
+                    <div class="info-row"><span class="info-label">Layer 1</span><span class="info-value">dns, auth</span></div>
+                    <div class="info-row"><span class="info-label">Layer 2</span><span class="info-value">db, cache</span></div>
+                    <div class="info-row"><span class="info-label">Layer 3</span><span class="info-value">api, worker</span></div>
+                    <div class="info-row"><span class="info-label">Layer 4</span><span class="info-value">web (last)</span></div>
+                </div>
+                <p>Startup order: layer 0 first. Shutdown: reverse. No more guessing.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                cy.fit(50);
+            }
+        },
+        {
+            title: "Resource Types",
+            content: `
+                <p>Resources have <strong>types</strong> that describe what they are:</p>
+                <ul>
+                    <li><code>dns</code> is a <span class="highlight">DNSServer</span> + <span class="warning">CriticalInfra</span></li>
+                    <li><code>db</code> is a <span class="highlight">Database</span></li>
+                    <li><code>api</code> is an <span class="highlight">APIServer</span></li>
+                </ul>
+                <p>Types enable filtering ("show me all databases") and validation ("every CriticalInfra should have a backup").</p>
+            `,
+            action: () => {
+                cy.$id('dns').addClass('impact-highlight');
+                cy.$id('db').addClass('impact-highlight');
+                cy.$id('api').addClass('impact-highlight');
+            }
+        },
+        {
+            title: "What-If Simulation",
+            content: `
+                <p>Before making changes, <strong>simulate them</strong>.</p>
+                <p>"What if we add a cache replica?"</p>
+                <ul>
+                    <li>It would be at layer 2</li>
+                    <li>It would depend on dns</li>
+                    <li>It would share load with existing cache</li>
+                    <li>cache would no longer be a SPOF</li>
+                </ul>
+                <p>Validate changes before they hit production.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                cy.$id('cache').addClass('impact-highlight');
+            }
+        },
+        {
+            title: "Path Finding",
+            content: `
+                <p>"Why does web depend on pve-node?"</p>
+                <p>Find the <strong>dependency path</strong>:</p>
+                <div class="info-panel" style="font-family: monospace; font-size: 0.85rem;">
+                    web<br>
+                    &nbsp;&nbsp;depends on api<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;depends on db<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;depends on dns<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;depends on pve-node
+                </div>
+                <p>4 hops. Now you understand the chain.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                ['web', 'api', 'db', 'dns', 'pve-node'].forEach(id => {
+                    cy.$id(id).addClass('impact-highlight');
+                });
+                // Highlight path edges
+                cy.edges().forEach(e => {
+                    const path = ['web', 'api', 'db', 'dns', 'pve-node'];
+                    if (path.includes(e.source().id()) && path.includes(e.target().id())) {
+                        e.addClass('impact-highlight');
+                    }
+                });
+            }
+        },
+        {
+            title: "Data Sources",
+            content: `
+                <p>quicue graphs can be populated from:</p>
+                <ul>
+                    <li><strong>CUE definitions</strong> - native schema language</li>
+                    <li><strong>JSON-LD</strong> - semantic web format</li>
+                    <li><strong>Terraform state</strong> - import existing IaC</li>
+                    <li><strong>CMDB exports</strong> - TopDesk, ServiceNow adapters</li>
+                </ul>
+                <p>The graph is the <strong>single source of truth</strong>. Everything else computes from it.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                cy.fit(50);
+            }
+        },
+        {
+            title: "Explore",
+            content: `
+                <p>That's quicue: <strong>infrastructure dependency graphs with computable patterns</strong>.</p>
+                <p>What you can do:</p>
+                <ul>
+                    <li>Impact analysis before changes</li>
+                    <li>Auto-detect SPOFs and coupling</li>
+                    <li>Compute startup/shutdown order</li>
+                    <li>Simulate adding resources</li>
+                    <li>Track changes over time</li>
+                </ul>
+                <p><a href="index.html" style="color: #58a6ff;">Open the full explorer</a> to try it yourself.</p>
+            `,
+            action: () => {
+                cy.elements().removeClass('highlighted dimmed impact-source impact-highlight');
+                cy.fit(50);
+            }
+        }
+    ];
+
+    async function loadGraph() {
+        const resp = await fetch('data/operational.json');
+        graphData = await resp.json();
+        initCytoscape();
+        updateStep();
+    }
+
+    function initCytoscape() {
+        const maxDeps = Math.max(...graphData.nodes.map(n => n.dependents));
+
+        cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [
+                ...graphData.nodes.map(n => ({
+                    data: { id: n.id, ...n }
+                })),
+                ...graphData.edges.map(e => ({
+                    data: { id: `${e.source}-${e.target}`, source: e.source, target: e.target }
+                }))
+            ],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'label': 'data(id)',
+                        'text-valign': 'bottom',
+                        'text-margin-y': 8,
+                        'font-size': '12px',
+                        'color': '#8b949e',
+                        'background-color': (ele) => criticalityColor(ele.data('dependents'), maxDeps),
+                        'width': 40,
+                        'height': 40,
+                        'border-width': 2,
+                        'border-color': '#30363d'
+                    }
+                },
+                { selector: 'node.impact-source', style: { 'background-color': '#f85149', 'border-color': '#ff7b72', 'border-width': 4 } },
+                { selector: 'node.impact-highlight', style: { 'border-color': '#f85149', 'border-width': 3 } },
+                { selector: 'node.dimmed', style: { 'opacity': 0.2 } },
+                { selector: 'edge', style: { 'width': 2, 'line-color': '#30363d', 'target-arrow-color': '#30363d', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } },
+                { selector: 'edge.impact-highlight', style: { 'line-color': '#f85149', 'target-arrow-color': '#f85149', 'width': 3 } },
+                { selector: 'edge.dimmed', style: { 'opacity': 0.1 } }
+            ],
+            layout: {
+                name: 'breadthfirst',
+                directed: true,
+                roots: '#pve-node',
+                spacingFactor: 1.5
+            }
+        });
+    }
+
+    function criticalityColor(deps, max) {
+        if (max === 0) return '#58a6ff';
+        const ratio = deps / max;
+        if (ratio < 0.5) {
+            const r = Math.round(88 + (240 - 88) * (ratio * 2));
+            const g = Math.round(166 + (136 - 166) * (ratio * 2));
+            const b = Math.round(255 + (62 - 255) * (ratio * 2));
+            return `rgb(${r},${g},${b})`;
+        } else {
+            const r = Math.round(240 + (248 - 240) * ((ratio - 0.5) * 2));
+            const g = Math.round(136 - 136 * ((ratio - 0.5) * 2));
+            const b = Math.round(62 - 62 * ((ratio - 0.5) * 2));
+            return `rgb(${r},${g},${b})`;
+        }
+    }
+
+    function showImpact(targetId) {
+        cy.elements().removeClass('impact-source impact-highlight dimmed');
+        const target = cy.$id(targetId);
+        if (!target.length) return;
+
+        target.addClass('impact-source');
+
+        // Find all nodes that depend on target (have target in ancestors)
+        const affected = graphData.nodes.filter(n =>
+            n.ancestors && n.ancestors.includes(targetId)
+        ).map(n => n.id);
+
+        cy.nodes().forEach(n => {
+            if (affected.includes(n.id())) {
+                n.addClass('impact-highlight');
+            } else if (n.id() !== targetId) {
+                n.addClass('dimmed');
+            }
+        });
+
+        cy.edges().forEach(e => {
+            const srcAffected = affected.includes(e.source().id()) || e.source().id() === targetId;
+            const tgtAffected = affected.includes(e.target().id());
+            if (srcAffected && tgtAffected) {
+                e.addClass('impact-highlight');
+            } else {
+                e.addClass('dimmed');
+            }
+        });
+    }
+
+    function updateStep() {
+        const step = demoSteps[currentStep];
+        document.getElementById('narration').innerHTML = `<h2>${step.title}</h2>${step.content}`;
+        document.getElementById('current-step').textContent = currentStep + 1;
+        document.getElementById('total-steps').textContent = demoSteps.length;
+        document.getElementById('progress-fill').style.width = `${((currentStep + 1) / demoSteps.length) * 100}%`;
+        document.getElementById('btn-prev').disabled = currentStep === 0;
+        document.getElementById('btn-next').textContent = currentStep === demoSteps.length - 1 ? 'Finish' : 'Next';
+
+        if (step.action) step.action();
+    }
+
+    function nextStep() {
+        if (currentStep < demoSteps.length - 1) {
+            currentStep++;
+            updateStep();
+        } else {
+            window.location.href = 'index.html';
+        }
+    }
+
+    function prevStep() {
+        if (currentStep > 0) {
+            currentStep--;
+            updateStep();
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') {
+            e.preventDefault();
+            nextStep();
+        } else if (e.key === 'ArrowLeft') {
+            prevStep();
+        } else if (e.key === 'Escape') {
+            window.location.href = 'index.html';
+        }
+    });
+
+    loadGraph();
+    </script>
+</body>
+</html>
