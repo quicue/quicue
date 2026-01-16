@@ -76,7 +76,11 @@
             overflow: hidden;
         }
         #cy {
-            flex: 1;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background: #161b22;
         }
         aside {
@@ -87,7 +91,7 @@
             transition: width 0.2s ease;
         }
         /* Full-width mode for composition view */
-        main.composition-active #cy { display: none; }
+        main.composition-active #cy-container { display: none; }
         main.composition-active aside {
             width: 100%;
             border-left: none;
@@ -572,13 +576,14 @@
         .analysis-title { flex: 1; }
         .analysis-badge {
             font-size: 0.7rem;
-            padding: 0.125rem 0.5rem;
+            padding: 0.2rem 0.6rem;
             border-radius: 10px;
             background: #30363d;
+            font-weight: 600;
         }
-        .analysis-badge.critical { background: #f8514933; color: #f85149; }
-        .analysis-badge.warning { background: #f0883e33; color: #f0883e; }
-        .analysis-badge.ok { background: #3fb95033; color: #3fb950; }
+        .analysis-badge.critical { background: #da3633; color: #fff; }
+        .analysis-badge.warning { background: #d29922; color: #fff; }
+        .analysis-badge.ok { background: #238636; color: #fff; }
         .analysis-body {
             padding: 0.75rem;
             display: none;
@@ -587,15 +592,27 @@
         .analysis-item {
             display: flex;
             align-items: center;
-            padding: 0.5rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 4px;
             margin-bottom: 0.25rem;
             cursor: pointer;
             font-size: 0.85rem;
+            border-left: 3px solid #30363d;
+            background: #161b22;
         }
-        .analysis-item:hover { background: #21262d; }
-        .analysis-item-name { font-family: monospace; flex: 1; }
+        .analysis-item:hover { background: #21262d; border-left-color: #58a6ff; }
+        .analysis-item::before { content: ""; margin-right: 0.5rem; }
+        .analysis-item-name { font-family: monospace; flex: 1; color: #c9d1d9; }
         .analysis-item-value { color: #8b949e; font-size: 0.75rem; }
+        /* SPOF items get red indicator */
+        #spof-list .analysis-item { border-left-color: #da3633; }
+        #spof-list .analysis-item::before { content: "!"; color: #da3633; font-weight: bold; }
+        /* Coupling items get yellow/orange indicator */
+        #coupling-list .analysis-item { border-left-color: #d29922; }
+        #coupling-list .analysis-item::before { content: "~"; color: #d29922; font-weight: bold; }
+        /* Bottleneck items get blue indicator */
+        #bottleneck-list .analysis-item { border-left-color: #58a6ff; }
+        #bottleneck-list .analysis-item::before { content: ">"; color: #58a6ff; font-weight: bold; }
         .cascade-wave {
             display: flex;
             align-items: center;
@@ -635,20 +652,406 @@
             display: block;
             margin-bottom: 0.25rem;
         }
+        /* Search modal */
+        .search-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 15vh;
+        }
+        .search-modal.active { display: flex; }
+        .search-container {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            width: 500px;
+            max-height: 60vh;
+            overflow: hidden;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+        }
+        .search-input-wrap {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #30363d;
+            gap: 0.75rem;
+        }
+        .search-input-wrap svg { color: #8b949e; flex-shrink: 0; }
+        .search-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #c9d1d9;
+            font-size: 1rem;
+            outline: none;
+        }
+        .search-input::placeholder { color: #6e7681; }
+        .search-hint {
+            font-size: 0.7rem;
+            color: #6e7681;
+            padding: 0.25rem 0.5rem;
+            background: #21262d;
+            border-radius: 4px;
+        }
+        .search-results {
+            max-height: 45vh;
+            overflow-y: auto;
+        }
+        .search-result {
+            display: flex;
+            align-items: center;
+            padding: 0.625rem 1rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+        .search-result:hover, .search-result.selected {
+            background: #21262d;
+            border-left-color: #58a6ff;
+        }
+        .search-result-name {
+            font-family: monospace;
+            font-size: 0.9rem;
+            flex: 1;
+        }
+        .search-result-types {
+            font-size: 0.7rem;
+            color: #8b949e;
+        }
+        .search-result-meta {
+            font-size: 0.7rem;
+            color: #6e7681;
+            margin-left: 0.75rem;
+        }
+        .search-empty {
+            padding: 2rem;
+            text-align: center;
+            color: #6e7681;
+        }
+        /* Layout selector */
+        .layout-select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .layout-select:hover { background: #30363d; }
+        /* Toolbar */
+        .graph-toolbar {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+        .toolbar-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .toolbar-btn:hover { background: #30363d; }
+        .toolbar-btn.primary { background: #238636; border-color: #238636; }
+        .toolbar-btn.primary:hover { background: #2ea043; }
+        /* Add resource modal */
+        .add-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .add-modal.active { display: flex; }
+        .add-modal-content {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+            width: 550px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .add-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .add-modal-header h2 { margin: 0; font-size: 1.25rem; }
+        .add-modal-close {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .add-form-group {
+            margin-bottom: 1rem;
+        }
+        .add-form-label {
+            display: block;
+            margin-bottom: 0.35rem;
+            color: #8b949e;
+            font-size: 0.85rem;
+        }
+        .add-form-input {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #c9d1d9;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+            font-family: monospace;
+        }
+        .add-form-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .add-form-select {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #c9d1d9;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+        }
+        .add-form-hint {
+            font-size: 0.75rem;
+            color: #6e7681;
+            margin-top: 0.25rem;
+        }
+        .validation-result {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        .validation-result.valid {
+            background: #238636;
+            color: white;
+        }
+        .validation-result.warning {
+            background: #9e6a03;
+            color: white;
+        }
+        .validation-result.error {
+            background: #da3633;
+            color: white;
+        }
+        .validation-details {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .validation-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0;
+        }
+        .validation-item.ok::before { content: "+"; color: #3fb950; font-weight: bold; }
+        .validation-item.warn::before { content: "~"; color: #d29922; font-weight: bold; }
+        .validation-item.bad::before { content: "!"; color: #f85149; font-weight: bold; }
+        .add-form-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.25rem;
+        }
+        .add-form-btn {
+            flex: 1;
+            padding: 0.625rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: 1px solid #30363d;
+        }
+        .add-form-btn.primary {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        .add-form-btn.primary:hover { background: #2ea043; }
+        .add-form-btn.primary:disabled {
+            background: #21262d;
+            border-color: #30363d;
+            color: #6e7681;
+            cursor: not-allowed;
+        }
+        .add-form-btn.secondary {
+            background: #21262d;
+            color: #c9d1d9;
+        }
+        .add-form-btn.secondary:hover { background: #30363d; }
+        .dep-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: #21262d;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin: 0.125rem;
+        }
+        .dep-tag-remove {
+            background: none;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0;
+            margin-left: 0.25rem;
+        }
+        .dep-tag-remove:hover { color: #f85149; }
+        .dep-tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+            min-height: 1.5rem;
+        }
+        /* Add resource mode - click nodes to add as dependencies */
+        .add-mode-hint {
+            background: #238636;
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .add-mode-hint svg { flex-shrink: 0; }
+        /* Status and health indicators */
+        .health-badge {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .health-badge.healthy { background: #238636; color: white; }
+        .health-badge.degraded { background: #d29922; color: white; }
+        .health-badge.down { background: #da3633; color: white; }
+        .health-badge.unknown { background: #6e7681; color: white; }
+        .status-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.75rem;
+            border-bottom: 1px solid #21262d;
+        }
+        .status-metric-label { color: #8b949e; }
+        .status-metric-value { font-family: monospace; }
+        /* Cost display */
+        .cost-value { color: #3fb950; font-weight: 500; }
+        .cost-value.high { color: #f0883e; }
+        .cost-value.critical { color: #f85149; }
+        /* History timeline */
+        .history-commit {
+            padding: 0.75rem;
+            border-left: 3px solid #30363d;
+            margin-left: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: #161b22;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .history-commit:hover { border-left-color: #58a6ff; background: #21262d; }
+        .history-commit.expanded { border-left-color: #3fb950; }
+        .history-commit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        .history-commit-hash {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #58a6ff;
+        }
+        .history-commit-time {
+            font-size: 0.7rem;
+            color: #8b949e;
+        }
+        .history-commit-message {
+            font-size: 0.85rem;
+            color: #c9d1d9;
+            margin-bottom: 0.25rem;
+        }
+        .history-commit-author {
+            font-size: 0.7rem;
+            color: #8b949e;
+        }
+        .history-commit-changes {
+            display: none;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #30363d;
+        }
+        .history-commit.expanded .history-commit-changes { display: block; }
+        .history-change {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            padding: 0.25rem 0;
+        }
+        .history-change-type {
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .history-change-type.added { background: #23863633; color: #3fb950; }
+        .history-change-type.modified { background: #1f6feb33; color: #58a6ff; }
+        .history-change-type.removed { background: #da363333; color: #f85149; }
+        .history-change-resource { font-family: monospace; }
     </style>
 </head>
 <body>
     <header>
         <h1><a href="https://github.com/quicue/quicue">quicue</a> <span>/ graph explorer</span></h1>
         <select id="example-select">
-            <option value="multi-region">multi-region - 22 nodes, 6 layers</option>
-            <option value="operational">operational - web stack (8 nodes)</option>
-            <option value="graph-patterns">graph-patterns - topology & queries</option>
-            <option value="type-composition">type-composition - actions from types</option>
-            <option value="provider-demo">provider-demo - Proxmox vs Docker</option>
-            <option value="3-layer">3-layer - CUE unification</option>
-            <option value="jsonld-export">jsonld-export - RDF export</option>
+            <option value="graph-patterns">graph-patterns (5 nodes)</option>
+            <option value="operational">operational (8 nodes)</option>
+            <option value="3-layer">3-layer (3 nodes)</option>
+            <option value="multi-region">multi-region (22 nodes)</option>
+            <option value="kubernetes">kubernetes (15 nodes)</option>
+            <option value="terraform-aws">terraform-aws (12 nodes)</option>
+            <option value="type-composition">type-composition</option>
+            <option value="provider-demo">provider-demo</option>
         </select>
+        <button id="load-jsonld-btn" style="background: #238636; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">Load JSON-LD</button>
         <nav>
             <button class="active" data-view="graph">Graph</button>
             <button data-view="api">Patterns</button>
@@ -656,6 +1059,7 @@
             <button data-view="timeline">Timeline</button>
             <button data-view="types">Types</button>
             <button data-view="analysis">Analysis</button>
+            <button data-view="history">History</button>
         </nav>
         <div class="links">
             <a href="explore.html">D3 Explorer</a>
@@ -669,6 +1073,8 @@
         <span><strong id="metric-edges">-</strong> edges</span>
         <span><strong id="metric-roots">-</strong> roots</span>
         <span><strong id="metric-leaves">-</strong> leaves</span>
+        <span id="metric-cost-span" style="display: none;">cost <strong id="metric-cost">$0</strong>/mo</span>
+        <span id="metric-health-span" style="display: none;"><span id="metric-health-badge" class="health-badge">-</span></span>
         <span style="margin-left: auto;">
             <label style="cursor: pointer;">
                 <input type="checkbox" id="impact-mode" style="margin-right: 0.5rem;">
@@ -681,7 +1087,25 @@
         <span id="insight-text" style="color: #c9d1d9;">-</span>
     </div>
     <main>
-        <div id="cy"></div>
+        <div id="cy-container" style="flex: 1; position: relative;">
+            <div id="cy"></div>
+            <div class="graph-toolbar">
+                <select id="layout-select" class="layout-select" title="Graph layout">
+                    <option value="breadthfirst">Hierarchical</option>
+                    <option value="cose">Force-directed</option>
+                    <option value="circle">Circular</option>
+                    <option value="grid">Grid</option>
+                    <option value="concentric">Concentric</option>
+                </select>
+                <button class="toolbar-btn" onclick="openSearch()" title="Search nodes (/)">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+                    <span>/</span>
+                </button>
+                <button class="toolbar-btn primary" onclick="openAddResource()" title="Add resource">+ Add</button>
+                <button class="toolbar-btn" onclick="exportPng()" title="Export as PNG">PNG</button>
+                <button class="toolbar-btn" onclick="copyShareableUrl()" title="Copy shareable link">Share</button>
+            </div>
+        </div>
         <aside>
             <!-- Graph View -->
             <div class="view active" id="view-graph">
@@ -699,9 +1123,21 @@
                         <span class="info-label">Dependents</span>
                         <span class="info-value" id="detail-dependents">-</span>
                     </div>
+                    <div class="info-row" id="detail-status-row" style="display: none;">
+                        <span class="info-label">Status</span>
+                        <span class="info-value" id="detail-status">-</span>
+                    </div>
+                    <div class="info-row" id="detail-cost-row" style="display: none;">
+                        <span class="info-label">Cost</span>
+                        <span class="info-value" id="detail-cost">-</span>
+                    </div>
                     <div style="margin-top: 0.75rem;">
                         <span class="info-label">Types</span>
                         <div id="detail-types" style="margin-top: 0.5rem;"></div>
+                    </div>
+                    <div id="detail-status-metrics" style="margin-top: 0.75rem; display: none;">
+                        <span class="info-label">Live Metrics</span>
+                        <div id="detail-metrics-list" style="margin-top: 0.5rem; font-size: 0.8rem;"></div>
                     </div>
                     <div id="detail-actions-section" style="margin-top: 0.75rem; display: none;">
                         <span class="info-label">Actions</span>
@@ -750,6 +1186,8 @@
                         <p><strong>Drag</strong> to pan</p>
                         <p><strong>Scroll</strong> to zoom</p>
                         <p><strong>Double-click</strong> to fit</p>
+                        <p style="margin-top: 0.5rem; border-top: 1px solid #30363d; padding-top: 0.5rem;"><strong>/</strong> search nodes</p>
+                        <p><strong>Esc</strong> close modals</p>
                     </div>
                 </div>
             </div>
@@ -1072,6 +1510,61 @@
                     </div>
                 </div>
 
+                <div class="analysis-section" id="analysis-spof">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">Single Points of Failure</span>
+                        <span class="analysis-badge" id="spof-badge">-</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div class="help" style="margin-bottom: 0.5rem;">Resources with dependents but no redundant peer of same type at same layer.</div>
+                        <div id="spof-list"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-section" id="analysis-coupling">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">Coupling Points</span>
+                        <span class="analysis-badge" id="coupling-badge">-</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div class="help" style="margin-bottom: 0.5rem;">Resources where 30%+ of the graph depends on them (shared dependencies).</div>
+                        <div id="coupling-list"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-section" id="analysis-path">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">Path Finder</span>
+                        <span class="analysis-badge" id="path-badge">A to B</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div class="help" style="margin-bottom: 0.5rem;">Find dependency path between two resources:</div>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <select id="path-from" class="add-form-select" style="flex: 1;"></select>
+                            <span style="color: #8b949e; align-self: center;">to</span>
+                            <select id="path-to" class="add-form-select" style="flex: 1;"></select>
+                        </div>
+                        <button onclick="findPath()" style="width: 100%; padding: 0.5rem; background: #238636; border: none; color: white; border-radius: 4px; cursor: pointer;">Find Path</button>
+                        <div id="path-result" style="margin-top: 0.75rem;"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-section expanded" id="analysis-whatif">
+                    <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="analysis-title">What-If Simulation</span>
+                        <span class="analysis-badge" id="whatif-badge">healthy</span>
+                    </div>
+                    <div class="analysis-body">
+                        <div class="help" style="margin-bottom: 0.5rem;">Select resources to simulate as DOWN (Ctrl+click for multiple):</div>
+                        <select id="whatif-select" style="width: 100%; margin-bottom: 0.5rem; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 0.5rem; border-radius: 4px;" multiple size="4"></select>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button onclick="runWhatIfSimulation()" style="flex: 1; padding: 0.5rem; background: #da3633; border: none; color: white; border-radius: 4px; cursor: pointer;">Simulate Failure</button>
+                            <button onclick="clearWhatIfSimulation()" style="flex: 1; padding: 0.5rem; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; cursor: pointer;">Clear</button>
+                        </div>
+                        <div id="whatif-result" style="margin-top: 0.75rem;"></div>
+                    </div>
+                </div>
+
                 <div class="analysis-section" id="analysis-cascade">
                     <div class="analysis-header" onclick="this.parentElement.classList.toggle('expanded')">
                         <span class="analysis-title">Cascade Simulation</span>
@@ -1094,6 +1587,48 @@
                     </div>
                     <div class="analysis-body">
                         <div id="validation-result"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History View -->
+            <div class="view" id="view-history">
+                <div class="panel">
+                    <h2>Change History</h2>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Track infrastructure changes over time. Click commits to see details.
+                    </div>
+                </div>
+                <div id="history-summary" class="panel" style="display: none;">
+                    <h2>Summary</h2>
+                    <div class="info-row">
+                        <span class="info-label">Total Commits</span>
+                        <span class="info-value" id="history-commit-count">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Last Change</span>
+                        <span class="info-value" id="history-last-change">-</span>
+                    </div>
+                </div>
+                <div id="history-timeline" class="panel">
+                    <h2>Timeline</h2>
+                    <div id="history-list" style="max-height: 500px; overflow-y: auto;"></div>
+                    <div id="history-empty" class="help">No history data available for this graph.</div>
+                </div>
+                <div class="panel">
+                    <h2>Import</h2>
+                    <div class="help" style="margin-bottom: 0.75rem;">
+                        Import infrastructure definitions from external sources.
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <button class="add-form-btn secondary" onclick="document.getElementById('terraform-file-input').click()">
+                            Import Terraform State
+                        </button>
+                        <input type="file" id="terraform-file-input" accept=".json,.tfstate" style="display: none;" onchange="importTerraformState(this.files[0])">
+                        <button class="add-form-btn secondary" onclick="document.getElementById('pulumi-file-input').click()">
+                            Import Pulumi Stack
+                        </button>
+                        <input type="file" id="pulumi-file-input" accept=".json,.yaml" style="display: none;" onchange="importPulumiStack(this.files[0])">
                     </div>
                 </div>
             </div>
@@ -1150,11 +1685,25 @@
         return criticalityColor(data.dependents, maxDeps);
     }
 
+    // Get classes for a node (position + status)
+    function getNodeClasses(n) {
+        const classes = [];
+        if (n.depth === 0) classes.push('root');
+        if (n.dependents === 0) classes.push('leaf');
+        // Add status class if status data exists
+        if (n.status && n.status.health) {
+            classes.push('status-' + n.status.health);
+        }
+        return classes.join(' ');
+    }
+
     // Example insights - what to notice in each example
     const exampleInsights = {
         'graph-patterns': 'Check <strong>Impact mode</strong>, click <strong>dns-primary</strong> - 3 services turn red. Click <strong>Timeline</strong> for startup order.',
         'operational': 'Classic web stack: web→api→db/cache→dns. Check <strong>Analysis</strong> - db and cache are bottlenecks (3 dependents each).',
         'multi-region': 'Try <strong>Patterns</strong> tab - run ImpactQuery on dns-us (16 affected), or DependencyChain on web-eu (10 ancestors). Click "Show in Graph" to visualize.',
+        'kubernetes': 'K8s cluster with <strong>cost annotations</strong> ($1,370/mo) and <strong>live status</strong>. Click web-deployment (degraded status). Check <strong>History</strong> tab for changes.',
+        'terraform-aws': 'Imported from Terraform state. Notice cost breakdown ($332/mo). Check <strong>History</strong> tab - shows terraform apply events.',
         'type-composition': 'Click <strong>multi-role</strong> - 2 types = 3 actions. Compare to <strong>caddy</strong> (1 type = 2 actions).',
         'provider-demo': 'Click <strong>dns</strong> - see Proxmox commands with Docker alternative below. Same resource, different backend.',
         '3-layer': 'Click <strong>Composition</strong> - see how Interface + Provider + Instance merge into one concrete command.',
@@ -1162,7 +1711,7 @@
     };
 
     // Initialize visualization with loaded data
-    async function init(exampleName = 'multi-region') {
+    async function init(exampleName = 'graph-patterns') {
         try {
             const response = await fetch(`data/${exampleName}.json`);
             graphData = await response.json();
@@ -1197,6 +1746,11 @@
             };
         }
 
+        // Compute SPOF and coupling if missing (for older data files)
+        if (!graphData.spof || !graphData.coupling) {
+            graphData = computeMissingPatterns(graphData);
+        }
+
         // Update metrics bar
         const m = graphData.metrics;
         document.getElementById('metric-total').textContent = m.total;
@@ -1204,6 +1758,12 @@
         document.getElementById('metric-edges').textContent = m.edges;
         document.getElementById('metric-roots').textContent = m.roots;
         document.getElementById('metric-leaves').textContent = m.leaves;
+
+        // Update cost metric
+        updateCostAndHealthMetrics();
+
+        // Populate history view
+        populateHistoryView();
 
         // Update insight bar
         const insightText = exampleInsights[exampleName] || '';
@@ -1223,7 +1783,7 @@
             elements: [
                 ...graphData.nodes.map(n => ({
                     data: { id: n.id, ...n },
-                    classes: n.depth === 0 ? 'root' : (n.dependents === 0 ? 'leaf' : '')
+                    classes: getNodeClasses(n)
                 })),
                 ...graphData.edges.map(e => ({
                     data: { id: `${e.source}-${e.target}`, source: e.source, target: e.target }
@@ -1272,6 +1832,69 @@
                         'border-width': 4,
                         'border-color': '#f85149',
                         'background-color': '#f85149'
+                    }
+                },
+                {
+                    selector: 'node.whatif-down',
+                    style: {
+                        'background-color': '#da3633',
+                        'border-width': 4,
+                        'border-color': '#ff7b72'
+                    }
+                },
+                {
+                    selector: 'node.whatif-degraded',
+                    style: {
+                        'background-color': '#d29922',
+                        'border-width': 3,
+                        'border-color': '#e3b341'
+                    }
+                },
+                {
+                    selector: 'node.whatif-healthy',
+                    style: {
+                        'border-width': 2,
+                        'border-color': '#3fb950'
+                    }
+                },
+                {
+                    selector: 'node.dep-candidate',
+                    style: {
+                        'border-style': 'dashed',
+                        'border-color': '#58a6ff',
+                        'border-width': 2
+                    }
+                },
+                {
+                    selector: 'node.dep-selected',
+                    style: {
+                        'border-width': 4,
+                        'border-color': '#3fb950',
+                        'border-style': 'solid'
+                    }
+                },
+                {
+                    selector: 'node.status-healthy',
+                    style: {
+                        'border-width': 2,
+                        'border-color': '#3fb950',
+                        'border-style': 'solid'
+                    }
+                },
+                {
+                    selector: 'node.status-degraded',
+                    style: {
+                        'border-width': 3,
+                        'border-color': '#d29922',
+                        'border-style': 'solid'
+                    }
+                },
+                {
+                    selector: 'node.status-down',
+                    style: {
+                        'border-width': 4,
+                        'border-color': '#da3633',
+                        'border-style': 'solid'
                     }
                 },
                 {
@@ -1362,6 +1985,12 @@
             const node = evt.target;
             const data = node.data();
 
+            // Handle add resource mode - click to add/remove dependency
+            if (addResourceMode) {
+                toggleDepFromGraph(data.id);
+                return; // Don't show normal details
+            }
+
             // Handle impact mode
             if (document.getElementById('impact-mode').checked) {
                 showImpact(data.id);
@@ -1374,7 +2003,8 @@
             document.getElementById('detail-dependents').textContent = data.dependents;
 
             const typesEl = document.getElementById('detail-types');
-            typesEl.innerHTML = data.types.map(t =>
+            const types = normalizeTypes(data.types);
+            typesEl.innerHTML = types.map(t =>
                 `<span class="type-badge ${typeCategories[t] || ''}">${t}</span>`
             ).join('');
 
@@ -1394,6 +2024,44 @@
                 actionsSection.style.display = 'block';
             } else {
                 actionsSection.style.display = 'none';
+            }
+
+            // Show status if available
+            const statusRow = document.getElementById('detail-status-row');
+            const statusEl = document.getElementById('detail-status');
+            const metricsSection = document.getElementById('detail-status-metrics');
+            const metricsList = document.getElementById('detail-metrics-list');
+            if (data.status) {
+                const health = data.status.health || 'unknown';
+                statusEl.innerHTML = `<span class="health-badge ${health}">${health}</span>`;
+                statusRow.style.display = 'flex';
+
+                // Show additional status metrics
+                const statusMetrics = Object.entries(data.status)
+                    .filter(([k, v]) => k !== 'health' && typeof v !== 'object')
+                    .map(([k, v]) => `<div class="status-metric"><span class="status-metric-label">${k.replace(/_/g, ' ')}</span><span class="status-metric-value">${v}</span></div>`)
+                    .join('');
+                if (statusMetrics) {
+                    metricsList.innerHTML = statusMetrics;
+                    metricsSection.style.display = 'block';
+                } else {
+                    metricsSection.style.display = 'none';
+                }
+            } else {
+                statusRow.style.display = 'none';
+                metricsSection.style.display = 'none';
+            }
+
+            // Show cost if available
+            const costRow = document.getElementById('detail-cost-row');
+            const costEl = document.getElementById('detail-cost');
+            if (data.cost && data.cost.monthly_usd !== undefined) {
+                const monthly = data.cost.monthly_usd;
+                const costClass = monthly > 200 ? 'critical' : monthly > 100 ? 'high' : '';
+                costEl.innerHTML = `<span class="cost-value ${costClass}">$${monthly.toFixed(2)}/mo</span>`;
+                costRow.style.display = 'flex';
+            } else {
+                costRow.style.display = 'none';
             }
 
             document.getElementById('node-details').classList.add('active');
@@ -1590,6 +2258,256 @@
             validationBadge.className = 'analysis-badge critical';
             validationResult.innerHTML = issues.map(i => `<div class="analysis-item">${JSON.stringify(i)}</div>`).join('');
         }
+
+        // SPOF analysis
+        const spofBadge = document.getElementById('spof-badge');
+        const spofList = document.getElementById('spof-list');
+        const spofs = graphData.spof || [];
+
+        if (spofs.length > 0) {
+            spofBadge.textContent = `${spofs.length} risks`;
+            spofBadge.className = 'analysis-badge critical';
+            spofList.innerHTML = spofs.map(s => `
+                <div class="analysis-item" onclick="selectNodeFromAnalysis('${s.name}')">
+                    <span class="analysis-item-name">${s.name}</span>
+                    <span class="analysis-item-value">${s.dependents} deps, layer ${s.depth}</span>
+                </div>
+            `).join('');
+        } else {
+            spofBadge.textContent = 'none';
+            spofBadge.className = 'analysis-badge ok';
+            spofList.innerHTML = '<div class="help">No single points of failure detected.</div>';
+        }
+
+        // Coupling points analysis
+        const couplingBadge = document.getElementById('coupling-badge');
+        const couplingList = document.getElementById('coupling-list');
+        const coupling = graphData.coupling || [];
+
+        if (coupling.length > 0) {
+            couplingBadge.textContent = `${coupling.length} hotspots`;
+            couplingBadge.className = coupling.some(c => c.percentage >= 70) ? 'analysis-badge critical' : 'analysis-badge warning';
+            couplingList.innerHTML = coupling.sort((a, b) => b.percentage - a.percentage).map(c => {
+                const barWidth = c.percentage;
+                const color = c.percentage >= 70 ? '#da3633' : c.percentage >= 50 ? '#d29922' : '#58a6ff';
+                return `
+                    <div class="analysis-item" onclick="selectNodeFromAnalysis('${c.name}')" style="position: relative;">
+                        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: ${barWidth}%; background: ${color}; opacity: 0.2; border-radius: 4px;"></div>
+                        <span class="analysis-item-name" style="position: relative;">${c.name}</span>
+                        <span class="analysis-item-value" style="position: relative;">${c.percentage}%</span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            couplingBadge.textContent = 'none';
+            couplingBadge.className = 'analysis-badge ok';
+            couplingList.innerHTML = '<div class="help">No high-coupling resources detected.</div>';
+        }
+
+        // What-If selector
+        const whatifSelect = document.getElementById('whatif-select');
+        whatifSelect.innerHTML = graphData.nodes
+            .sort((a, b) => b.dependents - a.dependents)
+            .map(n => `<option value="${n.id}">${n.id} (${n.dependents} deps)</option>`)
+            .join('');
+
+        // Path Finder selectors
+        const sortedNodes = [...graphData.nodes].sort((a, b) => a.id.localeCompare(b.id));
+        const pathOptions = '<option value="">-- select --</option>' +
+            sortedNodes.map(n => `<option value="${n.id}">${n.id}</option>`).join('');
+        const pathFrom = document.getElementById('path-from');
+        const pathTo = document.getElementById('path-to');
+        if (pathFrom) pathFrom.innerHTML = pathOptions;
+        if (pathTo) pathTo.innerHTML = pathOptions;
+    }
+
+    // What-If simulation functions
+    function runWhatIfSimulation() {
+        if (!graphData) return;
+
+        const whatifSelect = document.getElementById('whatif-select');
+        const whatifResult = document.getElementById('whatif-result');
+        const whatifBadge = document.getElementById('whatif-badge');
+
+        const downResources = Array.from(whatifSelect.selectedOptions).map(o => o.value);
+        if (downResources.length === 0) {
+            whatifResult.innerHTML = '<div class="help">Select resources to simulate failure.</div>';
+            return;
+        }
+
+        // Compute degraded resources (anything that depends on down resources)
+        const degraded = new Set();
+        graphData.nodes.forEach(n => {
+            if (downResources.includes(n.id)) return;
+            const ancestors = n.ancestors || [];
+            if (ancestors.some(a => downResources.includes(a))) {
+                degraded.add(n.id);
+            }
+        });
+
+        const healthy = graphData.nodes.length - downResources.length - degraded.size;
+
+        whatifBadge.textContent = `${degraded.size} degraded`;
+        whatifBadge.className = degraded.size > graphData.nodes.length / 2 ? 'analysis-badge critical' : 'analysis-badge warning';
+
+        // Update graph visualization
+        if (cy) {
+            cy.nodes().removeClass('whatif-down whatif-degraded whatif-healthy');
+            downResources.forEach(id => cy.getElementById(id).addClass('whatif-down'));
+            degraded.forEach(id => cy.getElementById(id).addClass('whatif-degraded'));
+            cy.nodes().forEach(n => {
+                if (!downResources.includes(n.id()) && !degraded.has(n.id())) {
+                    n.addClass('whatif-healthy');
+                }
+            });
+        }
+
+        whatifResult.innerHTML = `
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span style="color: #da3633;">DOWN: ${downResources.length}</span>
+                <span style="color: #d29922;">DEGRADED: ${degraded.size}</span>
+                <span style="color: #3fb950;">HEALTHY: ${healthy}</span>
+            </div>
+            <div class="help">
+                ${downResources.map(d => `<strong>${d}</strong>`).join(', ')} simulated as failed.
+                ${degraded.size > 0 ? `<br>Affected: ${Array.from(degraded).slice(0, 5).join(', ')}${degraded.size > 5 ? ` +${degraded.size - 5} more` : ''}` : ''}
+            </div>
+        `;
+    }
+
+    function clearWhatIfSimulation() {
+        const whatifBadge = document.getElementById('whatif-badge');
+        const whatifResult = document.getElementById('whatif-result');
+        const whatifSelect = document.getElementById('whatif-select');
+
+        whatifBadge.textContent = 'healthy';
+        whatifBadge.className = 'analysis-badge ok';
+        whatifResult.innerHTML = '';
+        whatifSelect.selectedIndex = -1;
+
+        // Clear graph visualization
+        if (cy) {
+            cy.nodes().removeClass('whatif-down whatif-degraded whatif-healthy');
+        }
+    }
+
+    // Path Finder: find shortest path between two nodes
+    function findPath() {
+        const fromId = document.getElementById('path-from').value;
+        const toId = document.getElementById('path-to').value;
+        const resultEl = document.getElementById('path-result');
+        const badge = document.getElementById('path-badge');
+
+        if (!fromId || !toId) {
+            resultEl.innerHTML = '<div class="help">Select both source and target nodes.</div>';
+            return;
+        }
+
+        if (fromId === toId) {
+            resultEl.innerHTML = '<div class="help">Source and target are the same node.</div>';
+            badge.textContent = 'same node';
+            return;
+        }
+
+        // Build adjacency list (bidirectional for path finding)
+        const adj = {};
+        graphData.nodes.forEach(n => { adj[n.id] = []; });
+        graphData.edges.forEach(e => {
+            adj[e.source].push(e.target);
+            adj[e.target].push(e.source);
+        });
+
+        // BFS to find shortest path
+        const queue = [[fromId]];
+        const visited = new Set([fromId]);
+
+        while (queue.length > 0) {
+            const path = queue.shift();
+            const current = path[path.length - 1];
+
+            if (current === toId) {
+                // Found path!
+                badge.textContent = `${path.length - 1} hops`;
+                badge.className = 'analysis-badge ok';
+
+                // Build path display
+                const pathNodes = path.map(id => {
+                    const node = graphData.nodes.find(n => n.id === id);
+                    return { id, depth: node?.depth || 0 };
+                });
+
+                resultEl.innerHTML = `
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; margin-bottom: 0.5rem;">
+                        ${pathNodes.map((n, i) => `
+                            <span class="wave-node" onclick="selectNodeFromAnalysis('${n.id}')">${n.id}</span>
+                            ${i < pathNodes.length - 1 ? '<span style="color: #58a6ff;">&rarr;</span>' : ''}
+                        `).join('')}
+                    </div>
+                    <button onclick="highlightPathInGraph(['${path.join("','")}'])" style="width: 100%; padding: 0.375rem; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Show in Graph</button>
+                `;
+                return;
+            }
+
+            for (const neighbor of adj[current] || []) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push([...path, neighbor]);
+                }
+            }
+        }
+
+        // No path found
+        badge.textContent = 'no path';
+        badge.className = 'analysis-badge warning';
+        resultEl.innerHTML = '<div class="help">No dependency path exists between these nodes.</div>';
+    }
+
+    function highlightPathInGraph(path) {
+        if (!cy || !path || path.length === 0) return;
+
+        // Switch to graph view
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelector('nav button[data-view="graph"]').classList.add('active');
+        document.getElementById('view-graph').classList.add('active');
+        document.querySelector('main').classList.remove('composition-active');
+        document.body.classList.remove('composition-active');
+
+        // Clear and highlight
+        clearImpactHighlight();
+        cy.nodes().addClass('dimmed');
+        cy.edges().addClass('dimmed');
+
+        // Highlight path nodes
+        path.forEach((id, idx) => {
+            const node = cy.getElementById(id);
+            node.removeClass('dimmed');
+            if (idx === 0 || idx === path.length - 1) {
+                node.addClass('impact-source');
+            } else {
+                node.addClass('impact-highlight');
+            }
+        });
+
+        // Highlight edges along path
+        for (let i = 0; i < path.length - 1; i++) {
+            cy.edges().forEach(edge => {
+                const src = edge.source().id();
+                const tgt = edge.target().id();
+                if ((src === path[i] && tgt === path[i + 1]) ||
+                    (src === path[i + 1] && tgt === path[i])) {
+                    edge.removeClass('dimmed').addClass('impact-highlight');
+                }
+            });
+        }
+
+        // Fit to highlighted nodes
+        setTimeout(() => {
+            const highlighted = cy.nodes().filter(n => !n.hasClass('dimmed'));
+            if (highlighted.length > 0) {
+                cy.fit(highlighted, 80);
+            }
+        }, 100);
     }
 
     function runCascadeSimulation(targetId) {
@@ -2243,6 +3161,1772 @@ ${paramLines}
 
     // Initialize on load
     init();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SEARCH FUNCTIONALITY
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    let searchSelectedIndex = 0;
+    let searchFilteredNodes = [];
+
+    function openSearch() {
+        const modal = document.getElementById('search-modal');
+        const input = document.getElementById('search-input');
+        modal.classList.add('active');
+        input.value = '';
+        input.focus();
+        updateSearchResults('');
+    }
+
+    function closeSearch() {
+        document.getElementById('search-modal').classList.remove('active');
+    }
+
+    function updateSearchResults(query) {
+        if (!graphData || !graphData.nodes) return;
+
+        const resultsEl = document.getElementById('search-results');
+        const lowerQuery = query.toLowerCase();
+
+        searchFilteredNodes = graphData.nodes.filter(n => {
+            if (!query) return true;
+            if (n.id.toLowerCase().includes(lowerQuery)) return true;
+            const types = normalizeTypes(n.types);
+            if (types.some(t => t.toLowerCase().includes(lowerQuery))) return true;
+            return false;
+        }).sort((a, b) => {
+            // Exact matches first, then by dependents
+            const aExact = a.id.toLowerCase() === lowerQuery ? 1 : 0;
+            const bExact = b.id.toLowerCase() === lowerQuery ? 1 : 0;
+            if (aExact !== bExact) return bExact - aExact;
+            return b.dependents - a.dependents;
+        }).slice(0, 15);
+
+        searchSelectedIndex = 0;
+
+        if (searchFilteredNodes.length === 0) {
+            resultsEl.innerHTML = '<div class="search-empty">No resources found</div>';
+            return;
+        }
+
+        resultsEl.innerHTML = searchFilteredNodes.map((n, i) => {
+            const types = normalizeTypes(n.types).slice(0, 2).join(', ');
+            return `<div class="search-result ${i === 0 ? 'selected' : ''}" data-id="${n.id}" data-index="${i}">
+                <span class="search-result-name">${n.id}</span>
+                <span class="search-result-types">${types}</span>
+                <span class="search-result-meta">depth ${n.depth}, ${n.dependents} deps</span>
+            </div>`;
+        }).join('');
+
+        // Add click handlers
+        resultsEl.querySelectorAll('.search-result').forEach(el => {
+            el.addEventListener('click', () => selectSearchResult(el.dataset.id));
+        });
+    }
+
+    function selectSearchResult(nodeId) {
+        closeSearch();
+        // Switch to graph view
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelector('nav button[data-view="graph"]').classList.add('active');
+        document.getElementById('view-graph').classList.add('active');
+        document.querySelector('main').classList.remove('composition-active');
+        document.body.classList.remove('composition-active');
+        // Select and center on node
+        cy.nodes().unselect();
+        const node = cy.getElementById(nodeId);
+        node.select();
+        cy.animate({ center: { eles: node }, duration: 300 });
+    }
+
+    document.getElementById('search-input').addEventListener('input', (e) => {
+        updateSearchResults(e.target.value);
+    });
+
+    document.getElementById('search-input').addEventListener('keydown', (e) => {
+        const resultsEl = document.getElementById('search-results');
+        const results = resultsEl.querySelectorAll('.search-result');
+
+        if (e.key === 'Escape') {
+            closeSearch();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            searchSelectedIndex = Math.min(searchSelectedIndex + 1, results.length - 1);
+            results.forEach((r, i) => r.classList.toggle('selected', i === searchSelectedIndex));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            searchSelectedIndex = Math.max(searchSelectedIndex - 1, 0);
+            results.forEach((r, i) => r.classList.toggle('selected', i === searchSelectedIndex));
+        } else if (e.key === 'Enter') {
+            if (searchFilteredNodes[searchSelectedIndex]) {
+                selectSearchResult(searchFilteredNodes[searchSelectedIndex].id);
+            }
+        }
+    });
+
+    document.getElementById('search-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'search-modal') closeSearch();
+    });
+
+    // Global keyboard shortcut for search
+    document.addEventListener('keydown', (e) => {
+        // / to open search (when not in input)
+        if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+            e.preventDefault();
+            openSearch();
+        }
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            closeSearch();
+            closeAddResource();
+        }
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LAYOUT SELECTOR
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    document.getElementById('layout-select').addEventListener('change', (e) => {
+        applyLayout(e.target.value);
+    });
+
+    function applyLayout(layoutName) {
+        if (!cy) return;
+
+        const rootIds = graphData.roots || graphData.nodes.filter(n => n.depth === 0).map(n => n.id);
+
+        const layouts = {
+            breadthfirst: {
+                name: 'breadthfirst',
+                directed: true,
+                roots: rootIds.map(id => `#${id}`).join(', '),
+                spacingFactor: 1.5,
+                padding: 50
+            },
+            cose: {
+                name: 'cose',
+                animate: true,
+                animationDuration: 500,
+                nodeRepulsion: 8000,
+                idealEdgeLength: 100,
+                padding: 50
+            },
+            circle: {
+                name: 'circle',
+                padding: 50,
+                animate: true,
+                animationDuration: 300
+            },
+            grid: {
+                name: 'grid',
+                padding: 50,
+                animate: true,
+                animationDuration: 300
+            },
+            concentric: {
+                name: 'concentric',
+                concentric: node => node.data('dependents') || 0,
+                levelWidth: () => 2,
+                padding: 50,
+                animate: true,
+                animationDuration: 300
+            }
+        };
+
+        const layout = cy.layout(layouts[layoutName] || layouts.breadthfirst);
+        layout.run();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ADD RESOURCE (SIMULATION)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    let newResourceDeps = [];
+    let addResourceMode = false;
+
+    function openAddResource() {
+        const modal = document.getElementById('add-modal');
+        modal.classList.add('active');
+        addResourceMode = true;
+
+        // Clear form
+        document.getElementById('add-resource-id').value = '';
+        document.getElementById('add-resource-types').value = '';
+        document.getElementById('add-validation-result').innerHTML = '';
+        document.getElementById('add-resource-btn').disabled = true;
+        newResourceDeps = [];
+        renderDepTags();
+
+        // Populate dependency dropdown
+        const select = document.getElementById('add-resource-dep-select');
+        select.innerHTML = '<option value="">-- or use dropdown --</option>';
+        if (graphData && graphData.nodes) {
+            graphData.nodes
+                .sort((a, b) => b.dependents - a.dependents)
+                .forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n.id;
+                    opt.textContent = `${n.id} (${n.dependents} dependents)`;
+                    select.appendChild(opt);
+                });
+        }
+
+        // Clear any existing dependency highlights
+        if (cy) {
+            cy.nodes().removeClass('dep-candidate dep-selected');
+            cy.nodes().addClass('dep-candidate');
+        }
+    }
+
+    function closeAddResource() {
+        document.getElementById('add-modal').classList.remove('active');
+        addResourceMode = false;
+        // Clear dependency highlights
+        if (cy) {
+            cy.nodes().removeClass('dep-candidate dep-selected');
+        }
+    }
+
+    function toggleDepFromGraph(nodeId) {
+        if (!addResourceMode) return;
+
+        if (newResourceDeps.includes(nodeId)) {
+            // Remove
+            newResourceDeps = newResourceDeps.filter(d => d !== nodeId);
+            cy.getElementById(nodeId).removeClass('dep-selected');
+        } else {
+            // Add
+            newResourceDeps.push(nodeId);
+            cy.getElementById(nodeId).addClass('dep-selected');
+        }
+        renderDepTags();
+    }
+
+    document.getElementById('add-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'add-modal') closeAddResource();
+    });
+
+    document.getElementById('add-resource-dep-select').addEventListener('change', (e) => {
+        const dep = e.target.value;
+        if (dep && !newResourceDeps.includes(dep)) {
+            newResourceDeps.push(dep);
+            renderDepTags();
+        }
+        e.target.value = '';
+    });
+
+    function renderDepTags() {
+        const container = document.getElementById('add-resource-deps');
+        container.innerHTML = newResourceDeps.map(dep => `
+            <span class="dep-tag">
+                ${dep}
+                <button class="dep-tag-remove" onclick="removeDep('${dep}')">&times;</button>
+            </span>
+        `).join('');
+
+        // Sync graph highlighting
+        if (cy && addResourceMode) {
+            cy.nodes().removeClass('dep-selected');
+            newResourceDeps.forEach(dep => {
+                cy.getElementById(dep).addClass('dep-selected');
+            });
+        }
+    }
+
+    function removeDep(dep) {
+        newResourceDeps = newResourceDeps.filter(d => d !== dep);
+        if (cy) cy.getElementById(dep).removeClass('dep-selected');
+        renderDepTags();
+    }
+
+    function validateNewResource() {
+        const id = document.getElementById('add-resource-id').value.trim();
+        const typesStr = document.getElementById('add-resource-types').value.trim();
+        const resultEl = document.getElementById('add-validation-result');
+        const addBtn = document.getElementById('add-resource-btn');
+
+        if (!id) {
+            resultEl.innerHTML = '<div class="validation-result error">Resource ID is required</div>';
+            addBtn.disabled = true;
+            return null;
+        }
+
+        // Check for duplicate ID
+        const existingIds = graphData.nodes.map(n => n.id);
+        if (existingIds.includes(id)) {
+            resultEl.innerHTML = '<div class="validation-result error">Resource ID already exists</div>';
+            addBtn.disabled = true;
+            return null;
+        }
+
+        // Parse types
+        const types = typesStr ? typesStr.split(',').map(t => t.trim()).filter(t => t) : [];
+
+        // Build the new resource
+        const newResource = {
+            id,
+            types: types.reduce((acc, t) => { acc[t] = true; return acc; }, {}),
+            depth: 0,
+            ancestors: [],
+            dependents: 0
+        };
+
+        // Compute depth from dependencies
+        if (newResourceDeps.length > 0) {
+            const depNodes = newResourceDeps.map(d => graphData.nodes.find(n => n.id === d)).filter(n => n);
+            const maxDepth = Math.max(...depNodes.map(n => n.depth));
+            newResource.depth = maxDepth + 1;
+
+            // Compute ancestors (transitive)
+            const ancestors = new Set(newResourceDeps);
+            depNodes.forEach(d => {
+                (d.ancestors || []).forEach(a => ancestors.add(a));
+            });
+            newResource.ancestors = [...ancestors];
+        }
+
+        // Validation checks
+        const issues = [];
+        const warnings = [];
+
+        // Check if dependencies exist
+        const missingDeps = newResourceDeps.filter(d => !existingIds.includes(d));
+        if (missingDeps.length > 0) {
+            issues.push(`Unknown dependencies: ${missingDeps.join(', ')}`);
+        }
+
+        // Check for type coverage
+        if (types.length === 0) {
+            warnings.push('No types specified - resource will be uncategorized');
+        }
+
+        // Check for SPOF introduction
+        const newTypes = normalizeTypes(newResource.types);
+        if (newTypes.length > 0 && newResourceDeps.length === 1) {
+            const singleDep = graphData.nodes.find(n => n.id === newResourceDeps[0]);
+            if (singleDep && singleDep.dependents >= 2) {
+                warnings.push(`Single dependency on high-traffic node "${newResourceDeps[0]}" (${singleDep.dependents} dependents)`);
+            }
+        }
+
+        // Check for redundancy opportunity
+        const sameTypeSameDepth = graphData.nodes.filter(n =>
+            n.depth === newResource.depth &&
+            normalizeTypes(n.types).some(t => newTypes.includes(t))
+        );
+        if (sameTypeSameDepth.length > 0) {
+            const names = sameTypeSameDepth.map(n => n.id).join(', ');
+            // This is actually good - redundancy!
+        } else if (newTypes.length > 0) {
+            warnings.push(`No existing peer of same type at layer ${newResource.depth} - will be a SPOF`);
+        }
+
+        // Impact analysis: what would this affect?
+        const wouldAffect = graphData.nodes.filter(n =>
+            n.ancestors && n.ancestors.some(a => newResourceDeps.includes(a))
+        ).length;
+
+        // Render result
+        let html = '';
+        if (issues.length > 0) {
+            html = `<div class="validation-result error">Validation Failed</div>`;
+            addBtn.disabled = true;
+        } else if (warnings.length > 0) {
+            html = `<div class="validation-result warning">Valid with Warnings</div>`;
+            addBtn.disabled = false;
+        } else {
+            html = `<div class="validation-result valid">Validation Passed</div>`;
+            addBtn.disabled = false;
+        }
+
+        html += '<div class="validation-details">';
+
+        if (issues.length > 0) {
+            issues.forEach(i => { html += `<div class="validation-item bad">${i}</div>`; });
+        }
+        if (warnings.length > 0) {
+            warnings.forEach(w => { html += `<div class="validation-item warn">${w}</div>`; });
+        }
+
+        html += `<div class="validation-item ok">Will be at layer ${newResource.depth}</div>`;
+        html += `<div class="validation-item ok">${newResource.ancestors.length} transitive dependencies</div>`;
+
+        if (newResourceDeps.length === 0) {
+            html += `<div class="validation-item ok">Will be a new root (no dependencies)</div>`;
+        }
+
+        html += '</div>';
+        resultEl.innerHTML = html;
+
+        return newResource;
+    }
+
+    function addResourceToGraph() {
+        const newResource = validateNewResource();
+        if (!newResource) return;
+
+        // Add to graphData
+        graphData.nodes.push(newResource);
+
+        // Add edges
+        newResourceDeps.forEach(dep => {
+            graphData.edges.push({ source: dep, target: newResource.id });
+        });
+
+        // Recompute dependents for all nodes
+        graphData.nodes.forEach(n => {
+            n.dependents = graphData.nodes.filter(other =>
+                other.ancestors && other.ancestors.includes(n.id)
+            ).length;
+        });
+
+        // Recompute SPOF and coupling
+        graphData = computeMissingPatterns(graphData);
+
+        // Update metrics
+        graphData.metrics.total = graphData.nodes.length;
+        graphData.metrics.edges = graphData.edges.length;
+        graphData.metrics.maxDepth = Math.max(...graphData.nodes.map(n => n.depth));
+
+        // Update byType
+        const types = normalizeTypes(newResource.types);
+        types.forEach(t => {
+            if (!graphData.byType[t]) graphData.byType[t] = [];
+            graphData.byType[t].push(newResource.id);
+        });
+
+        // Update criticality
+        graphData.criticality = graphData.nodes
+            .map(n => ({ name: n.id, dependents: n.dependents }))
+            .sort((a, b) => b.dependents - a.dependents);
+
+        // Update roots/leaves
+        graphData.roots = graphData.nodes.filter(n => n.depth === 0).map(n => n.id);
+        graphData.leaves = graphData.nodes.filter(n => n.dependents === 0).map(n => n.id);
+
+        // Refresh visualization
+        closeAddResource();
+        reinitGraph();
+    }
+
+    function reinitGraph() {
+        // Update metrics bar
+        const m = graphData.metrics;
+        document.getElementById('metric-total').textContent = m.total;
+        document.getElementById('metric-depth').textContent = m.maxDepth;
+        document.getElementById('metric-edges').textContent = m.edges;
+        document.getElementById('metric-roots').textContent = graphData.roots.length;
+        document.getElementById('metric-leaves').textContent = graphData.leaves.length;
+
+        // Update cost and health metrics
+        updateCostAndHealthMetrics();
+        populateHistoryView();
+
+        // Get current layout
+        const currentLayout = document.getElementById('layout-select').value;
+
+        // Recreate cytoscape
+        const rootIds = graphData.roots || graphData.nodes.filter(n => n.depth === 0).map(n => n.id);
+
+        if (cy) cy.destroy();
+
+        cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [
+                ...graphData.nodes.map(n => ({
+                    data: { id: n.id, ...n },
+                    classes: getNodeClasses(n)
+                })),
+                ...graphData.edges.map(e => ({
+                    data: { id: `${e.source}-${e.target}`, source: e.source, target: e.target }
+                }))
+            ],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'label': 'data(id)',
+                        'text-valign': 'bottom',
+                        'text-margin-y': 8,
+                        'font-size': 12,
+                        'font-family': '-apple-system, BlinkMacSystemFont, sans-serif',
+                        'color': '#c9d1d9',
+                        'background-color': nodeColor,
+                        'width': 40,
+                        'height': 40,
+                        'border-width': 2,
+                        'border-color': '#30363d'
+                    }
+                },
+                { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#ffffff' } },
+                { selector: 'node.dimmed', style: { 'opacity': 0.25 } },
+                { selector: 'node.impact-highlight', style: { 'border-width': 3, 'border-color': '#f85149' } },
+                { selector: 'node.impact-source', style: { 'border-width': 4, 'border-color': '#f85149', 'background-color': '#f85149' } },
+                { selector: 'node.whatif-down', style: { 'background-color': '#da3633', 'border-width': 4, 'border-color': '#ff7b72' } },
+                { selector: 'node.whatif-degraded', style: { 'background-color': '#d29922', 'border-width': 3, 'border-color': '#e3b341' } },
+                { selector: 'node.whatif-healthy', style: { 'border-width': 2, 'border-color': '#3fb950' } },
+                { selector: 'node.new-resource', style: { 'border-width': 4, 'border-color': '#a371f7', 'background-color': '#a371f7' } },
+                { selector: 'node.dep-candidate', style: { 'border-style': 'dashed', 'border-color': '#58a6ff', 'border-width': 2 } },
+                { selector: 'node.dep-selected', style: { 'border-width': 4, 'border-color': '#3fb950', 'border-style': 'solid' } },
+                { selector: 'node.status-healthy', style: { 'border-width': 2, 'border-color': '#3fb950', 'border-style': 'solid' } },
+                { selector: 'node.status-degraded', style: { 'border-width': 3, 'border-color': '#d29922', 'border-style': 'solid' } },
+                { selector: 'node.status-down', style: { 'border-width': 4, 'border-color': '#da3633', 'border-style': 'solid' } },
+                { selector: 'edge', style: { 'width': 2, 'line-color': '#30363d', 'target-arrow-color': '#30363d', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'arrow-scale': 1 } },
+                { selector: 'edge:selected', style: { 'line-color': '#58a6ff', 'target-arrow-color': '#58a6ff' } },
+                { selector: 'edge.dimmed', style: { 'opacity': 0.15 } },
+                { selector: 'edge.impact-highlight', style: { 'line-color': '#f85149', 'target-arrow-color': '#f85149', 'width': 3 } }
+            ],
+            layout: { name: 'preset' }
+        });
+
+        setupEventHandlers();
+        applyLayout(currentLayout);
+        populateTimelineView();
+        populateTypesView();
+        populateAnalysisView();
+        populateApiExplorer();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PNG EXPORT
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function exportPng() {
+        if (!cy) return;
+
+        const png = cy.png({
+            output: 'blob',
+            bg: '#161b22',
+            scale: 2,
+            full: true
+        });
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(png);
+        link.download = `quicue-graph-${Date.now()}.png`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SHAREABLE URL
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function getShareableUrl() {
+        const state = {
+            e: document.getElementById('example-select').value, // example
+            v: document.querySelector('nav button.active')?.dataset.view || 'graph', // view
+            l: document.getElementById('layout-select').value, // layout
+        };
+
+        // Add selected node if any
+        if (cy) {
+            const selected = cy.nodes(':selected');
+            if (selected.length > 0) {
+                state.s = selected.map(n => n.id()).join(',');
+            }
+        }
+
+        // Add impact mode
+        if (document.getElementById('impact-mode').checked) {
+            state.i = '1';
+        }
+
+        const hash = btoa(JSON.stringify(state));
+        return `${window.location.origin}${window.location.pathname}#${hash}`;
+    }
+
+    function loadFromUrl() {
+        const hash = window.location.hash.slice(1);
+        if (!hash) return;
+
+        try {
+            const state = JSON.parse(atob(hash));
+
+            // Load example
+            if (state.e) {
+                document.getElementById('example-select').value = state.e;
+            }
+
+            // Initialize will handle view switching after load
+            init(state.e || 'graph-patterns').then(() => {
+                // Switch view
+                if (state.v) {
+                    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                    const btn = document.querySelector(`nav button[data-view="${state.v}"]`);
+                    if (btn) {
+                        btn.classList.add('active');
+                        document.getElementById(`view-${state.v}`).classList.add('active');
+                    }
+                }
+
+                // Apply layout
+                if (state.l) {
+                    document.getElementById('layout-select').value = state.l;
+                    applyLayout(state.l);
+                }
+
+                // Select nodes
+                if (state.s && cy) {
+                    const ids = state.s.split(',');
+                    ids.forEach(id => cy.getElementById(id).select());
+                }
+
+                // Impact mode
+                if (state.i === '1') {
+                    document.getElementById('impact-mode').checked = true;
+                    const selected = cy?.nodes(':selected');
+                    if (selected?.length > 0) {
+                        showImpact(selected[0].id());
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn('Invalid URL state:', e);
+        }
+    }
+
+    // Add share button handler
+    function copyShareableUrl() {
+        const url = getShareableUrl();
+        navigator.clipboard.writeText(url).then(() => {
+            // Brief visual feedback
+            const btn = document.querySelector('.toolbar-btn[onclick="copyShareableUrl()"]');
+            if (btn) {
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            }
+        });
+    }
+
+    // Load state from URL on page load (after init)
+    if (window.location.hash) {
+        loadFromUrl();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // JSON-LD LOADER
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    document.getElementById('load-jsonld-btn').addEventListener('click', () => {
+        document.getElementById('jsonld-modal').style.display = 'flex';
+    });
+
+    document.getElementById('jsonld-modal-close').addEventListener('click', () => {
+        document.getElementById('jsonld-modal').style.display = 'none';
+    });
+
+    document.getElementById('jsonld-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'jsonld-modal') {
+            document.getElementById('jsonld-modal').style.display = 'none';
+        }
+    });
+
+    // Detect fields when JSON-LD is pasted
+    document.getElementById('jsonld-input').addEventListener('input', (e) => {
+        try {
+            const input = JSON.parse(e.target.value);
+            detectJsonLdFields(input);
+            document.getElementById('jsonld-error').textContent = '';
+        } catch (err) {
+            document.getElementById('jsonld-error').textContent = 'Invalid JSON: ' + err.message;
+        }
+    });
+
+    function detectJsonLdFields(input) {
+        // Extract resources from @graph or top-level object
+        let resources = {};
+        if (input['@graph']) {
+            input['@graph'].forEach(r => {
+                const id = r['@id'] || r.id || r.name;
+                if (id) resources[id] = r;
+            });
+        } else {
+            // Assume top-level keys are resources (quicue format)
+            for (const [key, val] of Object.entries(input)) {
+                if (typeof val === 'object' && !key.startsWith('@')) {
+                    resources[key] = val;
+                }
+            }
+        }
+
+        // Detect potential dependency fields
+        const fieldCounts = {};
+        for (const r of Object.values(resources)) {
+            for (const [key, val] of Object.entries(r)) {
+                if (key.startsWith('@') && key !== '@type') continue;
+                if (typeof val === 'object' || Array.isArray(val)) {
+                    fieldCounts[key] = (fieldCounts[key] || 0) + 1;
+                }
+            }
+        }
+
+        // Populate dependency field dropdown
+        const depSelect = document.getElementById('jsonld-dep-field');
+        depSelect.innerHTML = '<option value="">-- select dependency field --</option>';
+        const commonDepFields = ['depends_on', 'dependsOn', 'requires', 'dependencies'];
+        for (const field of Object.keys(fieldCounts).sort()) {
+            const opt = document.createElement('option');
+            opt.value = field;
+            opt.textContent = `${field} (${fieldCounts[field]} resources)`;
+            if (commonDepFields.includes(field)) opt.selected = true;
+            depSelect.appendChild(opt);
+        }
+
+        document.getElementById('jsonld-preview').textContent =
+            `Detected ${Object.keys(resources).length} resources`;
+    }
+
+    document.getElementById('jsonld-load-btn').addEventListener('click', () => {
+        try {
+            const input = JSON.parse(document.getElementById('jsonld-input').value);
+            const depField = document.getElementById('jsonld-dep-field').value;
+
+            if (!depField) {
+                document.getElementById('jsonld-error').textContent = 'Please select a dependency field';
+                return;
+            }
+
+            const normalized = normalizeJsonLd(input, depField);
+            const computed = computePatterns(normalized);
+
+            // Load into visualization
+            graphData = computed;
+            reinitGraph();
+            populateTimelineView();
+
+            document.getElementById('jsonld-modal').style.display = 'none';
+            document.getElementById('example-select').value = '';
+
+        } catch (err) {
+            document.getElementById('jsonld-error').textContent = 'Error: ' + err.message;
+            console.error(err);
+        }
+    });
+
+    // Normalize JSON-LD to quicue format
+    function normalizeJsonLd(input, depField) {
+        const resources = {};
+
+        // Extract from @graph or top-level
+        const items = input['@graph'] || Object.entries(input)
+            .filter(([k, v]) => typeof v === 'object' && !k.startsWith('@'))
+            .map(([k, v]) => ({ '@id': k, ...v }));
+
+        for (const item of (Array.isArray(items) ? items : Object.values(items))) {
+            const id = item['@id'] || item.id || item.name;
+            if (!id) continue;
+
+            // Normalize @type to struct-as-set
+            let types = {};
+            const rawType = item['@type'];
+            if (typeof rawType === 'string') {
+                types[rawType] = true;
+            } else if (Array.isArray(rawType)) {
+                rawType.forEach(t => types[t] = true);
+            } else if (typeof rawType === 'object') {
+                types = rawType; // Already struct-as-set
+            }
+
+            // Normalize dependencies to struct-as-set
+            let depends_on = {};
+            const rawDeps = item[depField];
+            if (rawDeps) {
+                if (typeof rawDeps === 'string') {
+                    depends_on[rawDeps] = true;
+                } else if (Array.isArray(rawDeps)) {
+                    rawDeps.forEach(d => {
+                        const depId = typeof d === 'object' ? (d['@id'] || d.id) : d;
+                        if (depId) depends_on[depId] = true;
+                    });
+                } else if (typeof rawDeps === 'object') {
+                    if (rawDeps['@id']) {
+                        depends_on[rawDeps['@id']] = true;
+                    } else {
+                        // Assume struct-as-set
+                        depends_on = rawDeps;
+                    }
+                }
+            }
+
+            resources[id] = {
+                name: id,
+                '@type': types,
+                depends_on: Object.keys(depends_on).length > 0 ? depends_on : undefined
+            };
+        }
+
+        return resources;
+    }
+
+    // Compute all patterns from normalized resources
+    function computePatterns(resources) {
+        const nodes = [];
+        const edges = [];
+        const nodeMap = {};
+
+        // Build nodes and edges
+        for (const [id, r] of Object.entries(resources)) {
+            nodeMap[id] = {
+                id,
+                types: Object.keys(r['@type'] || {}),
+                ancestors: [],
+                dependents: 0
+            };
+
+            if (r.depends_on) {
+                for (const dep of Object.keys(r.depends_on)) {
+                    edges.push({ source: dep, target: id });
+                }
+            }
+        }
+
+        // Compute depth (BFS from roots)
+        const roots = Object.keys(nodeMap).filter(id =>
+            !edges.some(e => e.target === id)
+        );
+
+        const visited = new Set();
+        const queue = roots.map(id => ({ id, depth: 0 }));
+
+        while (queue.length > 0) {
+            const { id, depth } = queue.shift();
+            if (visited.has(id)) continue;
+            visited.add(id);
+
+            nodeMap[id].depth = depth;
+
+            // Find children (nodes that depend on this one)
+            edges.filter(e => e.source === id).forEach(e => {
+                if (!visited.has(e.target)) {
+                    queue.push({ id: e.target, depth: depth + 1 });
+                }
+            });
+        }
+
+        // Compute ancestors (transitive dependencies)
+        function getAncestors(id, seen = new Set()) {
+            if (seen.has(id)) return [];
+            seen.add(id);
+
+            const directDeps = edges.filter(e => e.target === id).map(e => e.source);
+            const allAncestors = [...directDeps];
+
+            for (const dep of directDeps) {
+                allAncestors.push(...getAncestors(dep, seen));
+            }
+
+            return [...new Set(allAncestors)];
+        }
+
+        for (const id of Object.keys(nodeMap)) {
+            nodeMap[id].ancestors = getAncestors(id);
+        }
+
+        // Compute dependents (reverse of ancestors)
+        for (const id of Object.keys(nodeMap)) {
+            const deps = Object.keys(nodeMap).filter(other =>
+                nodeMap[other].ancestors.includes(id)
+            );
+            nodeMap[id].dependents = deps.length;
+        }
+
+        // Build topology (group by depth)
+        const topology = {};
+        for (const [id, node] of Object.entries(nodeMap)) {
+            const layer = `layer_${node.depth}`;
+            if (!topology[layer]) topology[layer] = [];
+            topology[layer].push(id);
+        }
+
+        // Compute SPOF
+        const spof = [];
+        for (const [id, node] of Object.entries(nodeMap)) {
+            if (node.dependents === 0) continue;
+
+            // Check for peer of same type at same depth
+            const peers = Object.entries(nodeMap).filter(([otherId, other]) =>
+                otherId !== id && other.depth === node.depth
+            );
+
+            const nodeTypes = normalizeTypes(node.types);
+            const hasRedundantPeer = peers.some(([_, peer]) => {
+                const peerTypes = normalizeTypes(peer.types);
+                return nodeTypes.some(t => peerTypes.includes(t));
+            });
+
+            if (!hasRedundantPeer) {
+                spof.push({
+                    name: id,
+                    dependents: node.dependents,
+                    types: nodeTypes,
+                    depth: node.depth
+                });
+            }
+        }
+
+        // Compute coupling (>30% threshold)
+        const total = Object.keys(nodeMap).length;
+        const threshold = Math.floor(total * 0.3);
+        const coupling = Object.entries(nodeMap)
+            .filter(([_, node]) => node.dependents >= threshold)
+            .map(([id, node]) => ({
+                name: id,
+                dependents: node.dependents,
+                percentage: Math.round(node.dependents * 100 / total)
+            }))
+            .sort((a, b) => b.dependents - a.dependents);
+
+        // Build final structure
+        const leaves = Object.keys(nodeMap).filter(id => nodeMap[id].dependents === 0);
+        const maxDepth = Math.max(...Object.values(nodeMap).map(n => n.depth));
+
+        return {
+            nodes: Object.values(nodeMap),
+            edges,
+            topology,
+            roots,
+            leaves,
+            criticality: Object.entries(nodeMap)
+                .map(([id, n]) => ({ name: id, dependents: n.dependents }))
+                .sort((a, b) => b.dependents - a.dependents),
+            byType: groupByType(nodeMap),
+            spof,
+            coupling,
+            metrics: {
+                total,
+                maxDepth,
+                edges: edges.length,
+                roots: roots.length,
+                leaves: leaves.length,
+                spofCount: spof.length,
+                couplingCount: coupling.length
+            },
+            validation: { valid: true, issues: [] }
+        };
+    }
+
+    function groupByType(nodeMap) {
+        const groups = {};
+        for (const [id, node] of Object.entries(nodeMap)) {
+            const types = normalizeTypes(node.types);
+            for (const type of types) {
+                if (!groups[type]) groups[type] = [];
+                groups[type].push(id);
+            }
+        }
+        return groups;
+    }
+
+    // Normalize types: convert struct-as-set {T: true} to array [T]
+    function normalizeTypes(types) {
+        if (!types) return [];
+        if (Array.isArray(types)) return types;
+        if (typeof types === 'object') return Object.keys(types);
+        return [types];
+    }
+
+    // Compute SPOF and coupling for data files that don't have them
+    function computeMissingPatterns(data) {
+        const nodes = data.nodes;
+        const total = nodes.length;
+
+        // Compute SPOF: resources with dependents but no type peer at same depth
+        const spof = [];
+        for (const node of nodes) {
+            if (node.dependents === 0) continue;
+
+            const nodeTypes = normalizeTypes(node.types);
+            const peers = nodes.filter(n => n.id !== node.id && n.depth === node.depth);
+            const hasRedundantPeer = peers.some(peer => {
+                const peerTypes = normalizeTypes(peer.types);
+                return nodeTypes.some(t => peerTypes.includes(t));
+            });
+
+            if (!hasRedundantPeer) {
+                spof.push({
+                    name: node.id,
+                    dependents: node.dependents,
+                    types: nodeTypes,
+                    depth: node.depth
+                });
+            }
+        }
+
+        // Compute coupling: resources where >30% depend on them
+        const threshold = Math.floor(total * 0.3);
+        const coupling = nodes
+            .filter(n => n.dependents >= threshold)
+            .map(n => ({
+                name: n.id,
+                dependents: n.dependents,
+                percentage: Math.round(n.dependents * 100 / total)
+            }))
+            .sort((a, b) => b.dependents - a.dependents);
+
+        return {
+            ...data,
+            spof,
+            coupling,
+            metrics: {
+                ...data.metrics,
+                spofCount: spof.length,
+                couplingCount: coupling.length
+            }
+        };
+    }
+
+    // Update cost and health summary in metrics bar
+    function updateCostAndHealthMetrics() {
+        const costSpan = document.getElementById('metric-cost-span');
+        const costEl = document.getElementById('metric-cost');
+        const healthSpan = document.getElementById('metric-health-span');
+        const healthBadge = document.getElementById('metric-health-badge');
+
+        // Calculate total cost
+        const totalCost = graphData.nodes.reduce((sum, n) => {
+            return sum + (n.cost && n.cost.monthly_usd ? n.cost.monthly_usd : 0);
+        }, 0);
+
+        if (totalCost > 0) {
+            costEl.textContent = '$' + totalCost.toFixed(0);
+            costSpan.style.display = '';
+        } else {
+            costSpan.style.display = 'none';
+        }
+
+        // Calculate health summary
+        const healthCounts = { healthy: 0, degraded: 0, down: 0, unknown: 0 };
+        let hasStatusData = false;
+        graphData.nodes.forEach(n => {
+            if (n.status && n.status.health) {
+                hasStatusData = true;
+                const h = n.status.health;
+                healthCounts[h] = (healthCounts[h] || 0) + 1;
+            }
+        });
+
+        if (hasStatusData) {
+            let overallHealth = 'healthy';
+            let label = `${healthCounts.healthy} OK`;
+            if (healthCounts.down > 0) {
+                overallHealth = 'down';
+                label = `${healthCounts.down} down`;
+            } else if (healthCounts.degraded > 0) {
+                overallHealth = 'degraded';
+                label = `${healthCounts.degraded} degraded`;
+            }
+            healthBadge.textContent = label;
+            healthBadge.className = 'health-badge ' + overallHealth;
+            healthSpan.style.display = '';
+        } else {
+            healthSpan.style.display = 'none';
+        }
+    }
+
+    // Populate history view
+    function populateHistoryView() {
+        const container = document.getElementById('history-list');
+        const emptyMsg = document.getElementById('history-empty');
+        const summary = document.getElementById('history-summary');
+
+        if (!graphData.history || graphData.history.length === 0) {
+            container.innerHTML = '';
+            emptyMsg.style.display = 'block';
+            summary.style.display = 'none';
+            return;
+        }
+
+        emptyMsg.style.display = 'none';
+        summary.style.display = 'block';
+
+        // Update summary
+        document.getElementById('history-commit-count').textContent = graphData.history.length;
+        const lastChange = graphData.history[0];
+        const lastDate = new Date(lastChange.timestamp);
+        document.getElementById('history-last-change').textContent = formatTimeAgo(lastDate);
+
+        // Build timeline
+        container.innerHTML = graphData.history.map(commit => {
+            const date = new Date(commit.timestamp);
+            const changes = commit.changes || [];
+            return `
+                <div class="history-commit" onclick="this.classList.toggle('expanded')">
+                    <div class="history-commit-header">
+                        <span class="history-commit-hash">${commit.commit}</span>
+                        <span class="history-commit-time">${formatTimeAgo(date)}</span>
+                    </div>
+                    <div class="history-commit-message">${commit.message}</div>
+                    <div class="history-commit-author">${commit.author}</div>
+                    <div class="history-commit-changes">
+                        ${changes.map(c => `
+                            <div class="history-change">
+                                <span class="history-change-type ${c.type}">${c.type}</span>
+                                <span class="history-change-resource">${c.resource}</span>
+                                ${c.field ? `<span style="color: #8b949e;">${c.field}: ${c.from} -> ${c.to}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function formatTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+    }
+
+    // Import Terraform state file
+    async function importTerraformState(file) {
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const tfState = JSON.parse(text);
+
+            // Parse Terraform state format
+            const resources = [];
+            const resourceMap = {};
+
+            // Handle both Terraform state v4 and plan output
+            const tfResources = tfState.resources || tfState.values?.root_module?.resources || [];
+
+            tfResources.forEach(res => {
+                const id = res.address || `${res.type}.${res.name}`;
+                const types = inferTerraformTypes(res.type);
+                const instances = res.instances || [res];
+
+                instances.forEach((inst, idx) => {
+                    const resourceId = instances.length > 1 ? `${id}[${idx}]` : id;
+                    resourceMap[resourceId] = {
+                        id: resourceId,
+                        types: types,
+                        terraform: {
+                            resource_type: res.type,
+                            address: id,
+                            provider: res.provider
+                        },
+                        attributes: inst.attributes || {}
+                    };
+                    resources.push(resourceMap[resourceId]);
+                });
+            });
+
+            // Infer dependencies from attributes
+            resources.forEach(res => {
+                const deps = [];
+                const attrs = res.attributes || {};
+                // Look for common dependency patterns
+                ['vpc_id', 'subnet_id', 'security_group_ids', 'cluster_id', 'db_cluster_identifier'].forEach(key => {
+                    if (attrs[key]) {
+                        const depIds = Array.isArray(attrs[key]) ? attrs[key] : [attrs[key]];
+                        depIds.forEach(depId => {
+                            // Try to find matching resource
+                            const dep = resources.find(r => r.attributes?.id === depId || r.id.includes(depId));
+                            if (dep && dep.id !== res.id) {
+                                deps.push(dep.id);
+                            }
+                        });
+                    }
+                });
+                res.depends_on = deps;
+            });
+
+            // Convert to quicue format
+            const converted = convertToQuicueFormat(resources);
+            graphData = converted;
+            reinitGraph();
+
+            alert(`Imported ${resources.length} resources from Terraform state`);
+        } catch (e) {
+            console.error('Terraform import error:', e);
+            alert('Error parsing Terraform state: ' + e.message);
+        }
+    }
+
+    function inferTerraformTypes(tfType) {
+        const typeMap = {
+            'aws_vpc': { VPC: true, Network: true, Infrastructure: true },
+            'aws_subnet': { Subnet: true, Network: true },
+            'aws_security_group': { SecurityGroup: true, Security: true },
+            'aws_lb': { LoadBalancer: true, ALB: true },
+            'aws_elb': { LoadBalancer: true, ELB: true },
+            'aws_rds_cluster': { Database: true, RDS: true, CriticalInfra: true },
+            'aws_rds_instance': { Database: true, RDS: true },
+            'aws_elasticache_cluster': { CacheCluster: true, ElastiCache: true },
+            'aws_ecs_cluster': { ECSCluster: true, Container: true },
+            'aws_ecs_service': { ECSService: true, Container: true },
+            'aws_lambda_function': { Function: true, Serverless: true },
+            'aws_s3_bucket': { Storage: true, S3: true },
+            'aws_cloudwatch_log_group': { LogGroup: true, Observability: true },
+            'aws_route53_zone': { DNSZone: true, DNS: true },
+            'aws_route53_record': { DNSRecord: true, DNS: true },
+            'aws_iam_role': { IAMRole: true, Security: true },
+            'aws_instance': { VM: true, EC2: true, Compute: true },
+            'google_compute_instance': { VM: true, GCE: true, Compute: true },
+            'google_container_cluster': { KubernetesCluster: true, GKE: true },
+            'azurerm_virtual_machine': { VM: true, Azure: true, Compute: true },
+            'azurerm_kubernetes_cluster': { KubernetesCluster: true, AKS: true }
+        };
+        return typeMap[tfType] || { [tfType]: true };
+    }
+
+    // Import Pulumi stack
+    async function importPulumiStack(file) {
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            let stack;
+
+            // Handle YAML or JSON
+            if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+                // Simple YAML parsing for basic cases
+                alert('YAML import requires js-yaml library. Please export your Pulumi stack as JSON using: pulumi stack export > stack.json');
+                return;
+            } else {
+                stack = JSON.parse(text);
+            }
+
+            const resources = [];
+            const deployment = stack.deployment || stack;
+            const pulumiResources = deployment.resources || [];
+
+            pulumiResources.forEach(res => {
+                if (res.type.startsWith('pulumi:')) return; // Skip Pulumi internal resources
+
+                const types = inferPulumiTypes(res.type);
+                resources.push({
+                    id: res.urn.split('::').pop(),
+                    types: types,
+                    pulumi: {
+                        urn: res.urn,
+                        type: res.type,
+                        provider: res.provider
+                    },
+                    attributes: res.outputs || {},
+                    depends_on: (res.dependencies || []).map(d => d.split('::').pop())
+                });
+            });
+
+            const converted = convertToQuicueFormat(resources);
+            graphData = converted;
+            reinitGraph();
+
+            alert(`Imported ${resources.length} resources from Pulumi stack`);
+        } catch (e) {
+            console.error('Pulumi import error:', e);
+            alert('Error parsing Pulumi stack: ' + e.message);
+        }
+    }
+
+    function inferPulumiTypes(pulumiType) {
+        const parts = pulumiType.split(':');
+        const provider = parts[0];
+        const resourceType = parts[parts.length - 1];
+
+        const typeMap = {
+            'Vpc': { VPC: true, Network: true },
+            'Subnet': { Subnet: true, Network: true },
+            'SecurityGroup': { SecurityGroup: true, Security: true },
+            'LoadBalancer': { LoadBalancer: true },
+            'Cluster': { Cluster: true },
+            'Service': { Service: true },
+            'Function': { Function: true, Serverless: true },
+            'Bucket': { Storage: true, S3: true },
+            'Instance': { VM: true, Compute: true },
+            'Database': { Database: true }
+        };
+
+        return typeMap[resourceType] || { [resourceType]: true, [provider]: true };
+    }
+
+    // Convert imported resources to quicue format with computed fields
+    function convertToQuicueFormat(resources) {
+        // Build dependency graph
+        const nodes = [];
+        const edges = [];
+        const nodeMap = {};
+
+        resources.forEach(r => {
+            nodeMap[r.id] = {
+                id: r.id,
+                types: r.types,
+                depth: 0,
+                ancestors: [],
+                dependents: 0,
+                cost: r.cost || { monthly_usd: 0 },
+                status: r.status || { health: 'unknown' }
+            };
+            // Copy extra fields
+            if (r.terraform) nodeMap[r.id].terraform = r.terraform;
+            if (r.pulumi) nodeMap[r.id].pulumi = r.pulumi;
+        });
+
+        // Build edges from depends_on
+        resources.forEach(r => {
+            (r.depends_on || []).forEach(dep => {
+                if (nodeMap[dep]) {
+                    edges.push({ source: dep, target: r.id });
+                }
+            });
+        });
+
+        // Compute depths and ancestors
+        function computeDepth(nodeId, visited = new Set()) {
+            if (visited.has(nodeId)) return 0;
+            visited.add(nodeId);
+
+            const incomingEdges = edges.filter(e => e.target === nodeId);
+            if (incomingEdges.length === 0) return 0;
+
+            let maxDepth = 0;
+            const ancestors = new Set();
+            incomingEdges.forEach(e => {
+                const sourceDepth = computeDepth(e.source, visited);
+                maxDepth = Math.max(maxDepth, sourceDepth + 1);
+                ancestors.add(e.source);
+                if (nodeMap[e.source]) {
+                    nodeMap[e.source].ancestors.forEach(a => ancestors.add(a));
+                }
+            });
+
+            nodeMap[nodeId].ancestors = [...ancestors];
+            return maxDepth;
+        }
+
+        Object.keys(nodeMap).forEach(id => {
+            nodeMap[id].depth = computeDepth(id, new Set());
+        });
+
+        // Compute dependents
+        Object.keys(nodeMap).forEach(id => {
+            nodeMap[id].dependents = Object.values(nodeMap).filter(n =>
+                n.ancestors.includes(id)
+            ).length;
+        });
+
+        // Build topology
+        const topology = {};
+        Object.values(nodeMap).forEach(n => {
+            const layer = `layer_${n.depth}`;
+            if (!topology[layer]) topology[layer] = [];
+            topology[layer].push(n.id);
+        });
+
+        // Find roots and leaves
+        const roots = Object.values(nodeMap).filter(n => n.depth === 0).map(n => n.id);
+        const leaves = Object.values(nodeMap).filter(n => n.dependents === 0).map(n => n.id);
+
+        return {
+            nodes: Object.values(nodeMap),
+            edges,
+            topology,
+            roots,
+            leaves,
+            metrics: {
+                total: Object.keys(nodeMap).length,
+                maxDepth: Math.max(...Object.values(nodeMap).map(n => n.depth)),
+                edges: edges.length,
+                roots: roots.length,
+                leaves: leaves.length
+            },
+            validation: { valid: true, issues: [] },
+            source: 'import'
+        };
+    }
+    </script>
+
+    <!-- Search Modal -->
+    <div id="search-modal" class="search-modal">
+        <div class="search-container">
+            <div class="search-input-wrap">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+                <input type="text" id="search-input" class="search-input" placeholder="Search resources..." autocomplete="off">
+                <span class="search-hint">ESC to close</span>
+            </div>
+            <div id="search-results" class="search-results"></div>
+        </div>
+    </div>
+
+    <!-- Add Resource Modal -->
+    <div id="add-modal" class="add-modal">
+        <div class="add-modal-content">
+            <div class="add-modal-header">
+                <h2>Add Resource (Simulation)</h2>
+                <button class="add-modal-close" onclick="closeAddResource()">&times;</button>
+            </div>
+
+            <div class="add-mode-hint">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/></svg>
+                <span>Click nodes in the graph to add them as dependencies (green = selected)</span>
+            </div>
+
+            <div class="add-form-group">
+                <label class="add-form-label">Resource ID *</label>
+                <input type="text" id="add-resource-id" class="add-form-input" placeholder="e.g., cache-replica, db-backup">
+                <div class="add-form-hint">Unique identifier for the new resource</div>
+            </div>
+
+            <div class="add-form-group">
+                <label class="add-form-label">Types (comma-separated)</label>
+                <input type="text" id="add-resource-types" class="add-form-input" placeholder="e.g., CacheCluster, Backup">
+                <div class="add-form-hint">Known types: DNSServer, Database, CacheCluster, APIServer, Worker, LoadBalancer, AuthServer</div>
+            </div>
+
+            <div class="add-form-group">
+                <label class="add-form-label">Dependencies (click graph or use dropdown)</label>
+                <select id="add-resource-dep-select" class="add-form-select">
+                    <option value="">-- or use dropdown --</option>
+                </select>
+                <div id="add-resource-deps" class="dep-tags-container"></div>
+            </div>
+
+            <div id="add-validation-result"></div>
+
+            <div class="add-form-actions">
+                <button class="add-form-btn secondary" onclick="closeAddResource()">Cancel</button>
+                <button class="add-form-btn secondary" onclick="validateNewResource()">Validate Only</button>
+                <button id="add-resource-btn" class="add-form-btn primary" onclick="addResourceToGraph()" disabled>Add to Graph</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JSON-LD Loader Modal -->
+    <div id="jsonld-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; width: 600px; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0; font-size: 1.25rem;">Load JSON-LD</h2>
+                <button id="jsonld-modal-close" style="background: none; border: none; color: #8b949e; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: #8b949e; font-size: 0.85rem;">Paste JSON-LD or quicue resources:</label>
+                <textarea id="jsonld-input" style="width: 100%; height: 180px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-family: monospace; font-size: 0.85rem; padding: 0.75rem; resize: vertical;" placeholder='{
+  "@graph": [
+    {"@id": "dns", "@type": ["DNSServer"], "dependsOn": [{"@id": "node"}]},
+    {"@id": "node", "@type": ["VirtualizationPlatform"]}
+  ]
+}'></textarea>
+            </div>
+
+            <details style="margin-bottom: 1rem; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem;">
+                <summary style="cursor: pointer; color: #58a6ff; font-size: 0.85rem;">Using with CMDB/TopDesk data</summary>
+                <div style="margin-top: 0.75rem; color: #8b949e; font-size: 0.8rem; line-height: 1.6;">
+                    <p style="margin-bottom: 0.5rem;">For raw CMDB exports, use the <strong>quicue-adapters</strong> pipeline:</p>
+                    <pre style="background: #161b22; padding: 0.5rem; border-radius: 4px; overflow-x: auto; margin-bottom: 0.5rem;"><code style="color: #c9d1d9;"># 1. Place your CMDB JSON in adapters/topdesk/
+# 2. Export as JSON-LD:
+cue export ./adapters/topdesk/ -e jsonld --out json
+
+# 3. Paste the output here</code></pre>
+                    <p style="margin-bottom: 0.5rem;">The adapter normalizes:</p>
+                    <ul style="margin-left: 1rem; margin-bottom: 0.5rem;">
+                        <li>OS versions (103+ variations → canonical names)</li>
+                        <li>Server types (VM, Physical, Container, etc.)</li>
+                        <li>Network zones, SLA tiers, asset status</li>
+                        <li>Infers @type from software/function fields</li>
+                    </ul>
+                    <p><a href="https://github.com/quicue/quicue-adapters" target="_blank" style="color: #58a6ff;">quicue-adapters repo →</a></p>
+                </div>
+            </details>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: #8b949e; font-size: 0.85rem;">Dependency field:</label>
+                <select id="jsonld-dep-field" style="width: 100%; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 0.5rem; border-radius: 4px;">
+                    <option value="">-- paste JSON-LD first --</option>
+                </select>
+            </div>
+
+            <div id="jsonld-preview" style="color: #8b949e; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+            <div id="jsonld-error" style="color: #f85149; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+
+            <button id="jsonld-load-btn" style="width: 100%; background: #238636; border: none; color: white; padding: 0.75rem; border-radius: 6px; cursor: pointer; font-size: 1rem;">Load & Compute Patterns</button>
+        </div>
+    </div>
+
+    <!-- Demo Tour Overlay -->
+    <div id="demo-overlay" class="demo-overlay">
+        <div class="demo-start" id="demo-start">
+            <h1>quicue</h1>
+            <p>Infrastructure Dependency Graphs</p>
+            <button class="demo-start-btn" onclick="startDemoTour()">Start Demo</button>
+            <div class="demo-skip" onclick="skipDemo()">or explore on your own</div>
+        </div>
+        <div class="demo-narration" id="demo-narration">
+            <div class="demo-step-indicator">
+                <span id="demo-step-num">1</span> / <span id="demo-step-total">6</span>
+            </div>
+            <div class="demo-text" id="demo-text"></div>
+            <div class="demo-controls">
+                <button class="demo-btn" id="demo-prev" onclick="demoPrev()">Back</button>
+                <button class="demo-btn primary" id="demo-next" onclick="demoNext()">Next</button>
+                <button class="demo-btn" onclick="endDemo()">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .demo-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(13, 17, 23, 0.95);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s;
+        }
+        .demo-overlay.hidden { display: none; }
+        .demo-overlay.fading { opacity: 0; pointer-events: none; }
+        .demo-start {
+            text-align: center;
+            animation: fadeIn 0.5s;
+        }
+        .demo-start h1 {
+            font-size: 4rem;
+            font-weight: 300;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #58a6ff, #3fb950);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .demo-start p {
+            font-size: 1.5rem;
+            color: #8b949e;
+            margin-bottom: 2rem;
+        }
+        .demo-start-btn {
+            background: linear-gradient(135deg, #238636, #2ea043);
+            border: none;
+            color: white;
+            padding: 1rem 3rem;
+            font-size: 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .demo-start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(35, 134, 54, 0.4);
+        }
+        .demo-skip {
+            margin-top: 1.5rem;
+            color: #6e7681;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .demo-skip:hover { color: #8b949e; }
+        .demo-narration {
+            display: none;
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: slideUp 0.3s;
+        }
+        .demo-narration.active { display: block; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .demo-step-indicator {
+            font-size: 0.75rem;
+            color: #6e7681;
+            margin-bottom: 0.5rem;
+        }
+        .demo-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #c9d1d9;
+            margin-bottom: 1rem;
+        }
+        .demo-text strong { color: #58a6ff; }
+        .demo-text .highlight { color: #3fb950; font-weight: 600; }
+        .demo-text .warning { color: #f0883e; }
+        .demo-text .critical { color: #f85149; }
+        .demo-controls {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        .demo-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .demo-btn:hover { background: #30363d; }
+        .demo-btn.primary {
+            background: #238636;
+            border-color: #238636;
+            color: white;
+        }
+        .demo-btn.primary:hover { background: #2ea043; }
+        .demo-pointer {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #58a6ff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10001;
+            animation: pulse 1s infinite;
+            transition: all 0.5s ease;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+        }
+    </style>
+
+    <script>
+    let demoStep = 0;
+    let demoPointer = null;
+    const demoSteps = [
+        {
+            text: 'This is your <strong>infrastructure graph</strong>. Each node is a resource, each edge is a dependency. Color = criticality (redder = more things depend on it).',
+            action: () => {
+                cy.fit(50);
+            }
+        },
+        {
+            text: 'See the metrics bar: <span class="highlight">$915/mo</span> total cost, and <span class="warning">2 degraded</span> services. Cost and health are computed from your resource definitions.',
+            action: () => {
+                // Just highlight the metrics bar
+            }
+        },
+        {
+            text: 'Click any node to see details. Here\'s <strong>api</strong> - it has status <span class="warning">degraded</span> with 2.3% error rate and costs <span class="highlight">$120/mo</span>.',
+            action: () => {
+                const apiNode = cy.$id('api');
+                if (apiNode.length) {
+                    apiNode.trigger('tap');
+                }
+            }
+        },
+        {
+            text: 'Now the power move: <strong>Impact Mode</strong>. When enabled, clicking a node shows its <span class="critical">blast radius</span> - everything that would fail if it went down.',
+            action: () => {
+                document.getElementById('impact-mode').checked = true;
+                const dnsNode = cy.$id('dns');
+                if (dnsNode.length) {
+                    setTimeout(() => showImpact('dns'), 300);
+                }
+            }
+        },
+        {
+            text: '<span class="critical">5 services</span> depend on dns. If it fails, api, web, worker, db, and cache all go down. This is why we track dependencies.',
+            action: () => { }
+        },
+        {
+            text: 'Check the <strong>Analysis</strong> tab for automated insights: SPOFs (single points of failure), coupling hotspots, and validation. All computed from your graph.',
+            action: () => {
+                document.querySelector('nav button[data-view="analysis"]').click();
+                document.getElementById('analysis-spof').classList.add('expanded');
+            }
+        },
+        {
+            text: 'The <strong>History</strong> tab tracks changes over time. See who changed what, when. Great for audits and debugging "what changed?"',
+            action: () => {
+                document.querySelector('nav button[data-view="history"]').click();
+            }
+        },
+        {
+            text: 'That\'s quicue. <strong>Dependency graphs that compute</strong>: impact analysis, cost aggregation, health monitoring, change tracking. Now explore on your own!',
+            action: () => {
+                document.querySelector('nav button[data-view="graph"]').click();
+                document.getElementById('impact-mode').checked = false;
+                clearImpactHighlight();
+            }
+        }
+    ];
+
+    function startDemoTour() {
+        // Load operational example for demo (has cost + status data)
+        document.getElementById('example-select').value = 'operational';
+        loadExample('operational');
+
+        setTimeout(() => {
+            document.getElementById('demo-start').style.display = 'none';
+            document.getElementById('demo-overlay').classList.add('fading');
+            document.getElementById('demo-narration').classList.add('active');
+            document.getElementById('demo-step-total').textContent = demoSteps.length;
+            demoStep = 0;
+            showDemoStep();
+        }, 500);
+    }
+
+    function showDemoStep() {
+        const step = demoSteps[demoStep];
+        document.getElementById('demo-step-num').textContent = demoStep + 1;
+        document.getElementById('demo-text').innerHTML = step.text;
+        document.getElementById('demo-prev').style.display = demoStep === 0 ? 'none' : '';
+        document.getElementById('demo-next').textContent = demoStep === demoSteps.length - 1 ? 'Finish' : 'Next';
+
+        if (step.action) step.action();
+    }
+
+    function demoNext() {
+        if (demoStep < demoSteps.length - 1) {
+            demoStep++;
+            showDemoStep();
+        } else {
+            endDemo();
+        }
+    }
+
+    function demoPrev() {
+        if (demoStep > 0) {
+            demoStep--;
+            showDemoStep();
+        }
+    }
+
+    function skipDemo() {
+        document.getElementById('demo-overlay').classList.add('hidden');
+    }
+
+    function endDemo() {
+        document.getElementById('demo-narration').classList.remove('active');
+        document.getElementById('demo-overlay').classList.add('hidden');
+        // Reset state
+        document.getElementById('impact-mode').checked = false;
+        clearImpactHighlight();
+        document.querySelector('nav button[data-view="graph"]').click();
+    }
+
+    // Check URL params for auto-demo or skip
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('demo') === 'skip' || urlParams.get('example')) {
+        document.getElementById('demo-overlay').classList.add('hidden');
+    }
     </script>
 </body>
 </html>

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>quicue - Infrastructure Dependency Graphs</title>
+    <link rel="stylesheet" href="https://unpkg.com/reveal.js@4.6.0/dist/reveal.css">
+    <link rel="stylesheet" href="https://unpkg.com/reveal.js@4.6.0/dist/theme/black.css">
+    <link rel="stylesheet" href="https://unpkg.com/reveal.js@4.6.0/plugin/highlight/monokai.css">
+    <style>
+        :root {
+            --r-background-color: #0d1117;
+            --r-main-color: #c9d1d9;
+            --r-heading-color: #ffffff;
+            --r-link-color: #58a6ff;
+            --r-code-font: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+        .reveal { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .reveal h1, .reveal h2, .reveal h3 { font-weight: 600; text-transform: none; }
+        .reveal h1 { font-size: 2.5em; }
+        .reveal h2 { font-size: 1.8em; color: #58a6ff; }
+        .reveal h3 { font-size: 1.3em; color: #8b949e; }
+        .reveal pre { box-shadow: none; font-size: 0.55em; }
+        .reveal pre code {
+            padding: 1em;
+            border-radius: 8px;
+            background: #161b22;
+            border: 1px solid #30363d;
+        }
+        .reveal code { font-family: var(--r-code-font); }
+        .reveal .highlight { color: #f0883e; }
+        .reveal .success { color: #3fb950; }
+        .reveal .danger { color: #f85149; }
+        .reveal .info { color: #58a6ff; }
+        .reveal .dim { color: #6e7681; }
+        .reveal table { margin: 0 auto; border-collapse: collapse; font-size: 0.7em; }
+        .reveal table th { background: #21262d; color: #58a6ff; padding: 0.5em 1em; }
+        .reveal table td { padding: 0.5em 1em; border-bottom: 1px solid #30363d; }
+        .reveal .stat-grid { display: flex; justify-content: center; gap: 2em; margin: 1em 0; }
+        .reveal .stat { text-align: center; }
+        .reveal .stat-value { font-size: 3em; font-weight: 700; color: #f0883e; }
+        .reveal .stat-label { font-size: 0.8em; color: #8b949e; }
+        .reveal .box { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1em; margin: 0.5em 0; }
+        .reveal .box-title { color: #58a6ff; font-weight: 600; margin-bottom: 0.5em; }
+        .reveal .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; }
+        .reveal .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1em; text-align: center; }
+        .reveal .layer { padding: 0.75em; border-radius: 6px; }
+        .reveal .layer-interface { background: #a371f733; border-left: 4px solid #a371f7; }
+        .reveal .layer-provider { background: #58a6ff33; border-left: 4px solid #58a6ff; }
+        .reveal .layer-instance { background: #3fb95033; border-left: 4px solid #3fb950; }
+        .reveal .flow { display: flex; align-items: center; justify-content: center; gap: 0.5em; }
+        .reveal .flow-arrow { color: #6e7681; font-size: 1.5em; }
+        .reveal .badge { display: inline-block; padding: 0.2em 0.6em; border-radius: 4px; font-size: 0.7em; font-weight: 600; }
+        .reveal .badge-red { background: #f8514933; color: #f85149; }
+        .reveal .badge-yellow { background: #d2992233; color: #d29922; }
+        .reveal .badge-green { background: #23863633; color: #3fb950; }
+        .reveal .badge-blue { background: #1f6feb33; color: #58a6ff; }
+        .reveal blockquote { background: #161b22; border-left: 4px solid #f85149; padding: 0.5em 1em; font-style: normal; }
+        .reveal .fragment.highlight-current-red.current-fragment { color: #f85149; }
+        .reveal ul { list-style: none; }
+        .reveal ul li::before { content: "->"; color: #58a6ff; margin-right: 0.5em; }
+        .title-slide h1 { font-size: 3em; margin-bottom: 0; }
+        .title-slide .subtitle { font-size: 1.2em; color: #8b949e; margin-top: 0.5em; }
+        .reveal .icon { font-size: 2em; margin-bottom: 0.5em; }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            <!-- Title -->
+            <section class="title-slide" data-background-gradient="linear-gradient(135deg, #0d1117 0%, #161b22 100%)">
+                <h1>quicue</h1>
+                <p class="subtitle">Infrastructure Dependency Graphs</p>
+                <p style="margin-top: 2em; color: #6e7681; font-size: 0.8em;">
+                    Typed resources. Computed patterns. Pre-CAB validation.
+                </p>
+            </section>
+
+            <!-- The Problem -->
+            <section>
+                <h2>The Problem</h2>
+                <blockquote class="fragment">"We updated the cache config..."</blockquote>
+                <blockquote class="fragment">"...and 6 services stopped authenticating."</blockquote>
+                <div class="fragment" style="margin-top: 1.5em;">
+                    <p class="dim">Dependency knowledge lives in people's heads.</p>
+                    <p class="dim">Impact analysis is manual and incomplete.</p>
+                    <p class="dim">CAB reviews lack systematic tooling.</p>
+                </div>
+            </section>
+
+            <!-- Stats -->
+            <section data-auto-animate>
+                <h2>Real Impact</h2>
+                <div class="stat-grid">
+                    <div class="stat fragment">
+                        <div class="stat-value">16</div>
+                        <div class="stat-label">services affected by<br>single DNS change</div>
+                    </div>
+                    <div class="stat fragment">
+                        <div class="stat-value">87%</div>
+                        <div class="stat-label">of graph depends on<br>one hypervisor</div>
+                    </div>
+                    <div class="stat fragment">
+                        <div class="stat-value">0</div>
+                        <div class="stat-label">redundant auth servers<br>(single point of failure)</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- What quicue does -->
+            <section>
+                <h2>What quicue Does</h2>
+                <p style="color: #8b949e;">Typed dependency graphs with <span class="highlight">computable patterns</span></p>
+                <pre><code class="language-javascript" data-trim>
+"dns-primary": {
+    "@type": { DNSServer: true, CriticalInfra: true },
+    depends_on: { "pve-node": true }
+}
+
+"api-server": {
+    "@type": { APIServer: true },
+    depends_on: { "dns-primary": true, "db": true, "cache": true }
+}
+                </code></pre>
+                <p class="fragment" style="margin-top: 1em;">
+                    <span class="badge badge-blue">ancestors</span>
+                    <span class="badge badge-blue">dependents</span>
+                    <span class="badge badge-blue">topology</span>
+                    <span class="badge badge-red">SPOF</span>
+                    <span class="badge badge-yellow">coupling</span>
+                </p>
+            </section>
+
+            <!-- Three Layer Architecture -->
+            <section>
+                <h2>Architecture</h2>
+                <p class="dim">CUE Unification: Schema + Template + Values = Commands</p>
+                <div class="three-col" style="margin-top: 1em;">
+                    <div class="layer layer-interface fragment">
+                        <div style="color: #a371f7; font-weight: 600;">INTERFACE</div>
+                        <div style="font-size: 0.8em; margin-top: 0.5em; color: #8b949e;">
+                            #Resource<br>#Action<br>#InfraGraph
+                        </div>
+                        <div style="font-size: 0.7em; margin-top: 0.5em;">Schema</div>
+                    </div>
+                    <div class="layer layer-provider fragment">
+                        <div style="color: #58a6ff; font-weight: 600;">PROVIDER</div>
+                        <div style="font-size: 0.8em; margin-top: 0.5em; color: #8b949e;">
+                            #ProxmoxLXC<br>#Docker<br>#Kubernetes
+                        </div>
+                        <div style="font-size: 0.7em; margin-top: 0.5em;">Templates</div>
+                    </div>
+                    <div class="layer layer-instance fragment">
+                        <div style="color: #3fb950; font-weight: 600;">INSTANCE</div>
+                        <div style="font-size: 0.8em; margin-top: 0.5em; color: #8b949e;">
+                            host: pve-1<br>container: 100<br>ip: 10.0.1.10
+                        </div>
+                        <div style="font-size: 0.7em; margin-top: 0.5em;">Values</div>
+                    </div>
+                </div>
+                <div class="fragment" style="margin-top: 1.5em;">
+                    <code style="background: #161b22; padding: 0.5em 1em; border-radius: 4px;">
+                        ssh -t pve-1 'pct enter 100'
+                    </code>
+                </div>
+            </section>
+
+            <!-- Impact Analysis -->
+            <section data-auto-animate>
+                <h2>Impact Analysis</h2>
+                <p class="dim">"What breaks if <code class="highlight">auth</code> goes down?"</p>
+                <div class="box fragment" data-id="impact">
+                    <div class="box-title">ImpactQuery { Target: "auth" }</div>
+                    <pre style="margin: 0;"><code data-trim>
+affected: [
+    "lb-us", "lb-eu", "mq", "db-primary",
+    "api-us", "api-eu", "web-us", "web-eu",
+    "worker-ingest", "worker-notify",
+    "search", "logging", "monitoring",
+    "job-cleanup", "job-report", "db-replica"
+]
+count: 16
+                    </code></pre>
+                </div>
+            </section>
+
+            <!-- SPOF Detection -->
+            <section>
+                <h2>SPOF Detection</h2>
+                <p class="dim">Automatically identifies single points of failure</p>
+                <div class="two-col" style="margin-top: 1em;">
+                    <div class="box fragment">
+                        <div class="box-title"><span class="danger">!</span> dns-primary</div>
+                        <div style="font-size: 0.8em;">
+                            <p>Dependents: <strong>3</strong></p>
+                            <p>Layer: <strong>1</strong></p>
+                            <p>Peers at layer: <strong>0</strong></p>
+                            <p class="danger">No redundancy</p>
+                        </div>
+                    </div>
+                    <div class="box fragment">
+                        <div class="box-title"><span class="success">+</span> dns-primary + dns-secondary</div>
+                        <div style="font-size: 0.8em;">
+                            <p>Same type at layer 1</p>
+                            <p>Automatic failover possible</p>
+                            <p class="success">Redundancy achieved</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Coupling Analysis -->
+            <section>
+                <h2>Coupling Analysis</h2>
+                <p class="dim">Shared dependency hotspots (>30% of graph)</p>
+                <div class="box" style="margin-top: 1em;">
+                    <table style="width: 100%;">
+                        <tr>
+                            <th>Resource</th>
+                            <th>Dependents</th>
+                            <th>% of Graph</th>
+                            <th>Risk</th>
+                        </tr>
+                        <tr class="fragment">
+                            <td><code>pve-node</code></td>
+                            <td>7</td>
+                            <td>
+                                <div style="background: linear-gradient(90deg, #f85149 87.5%, #30363d 87.5%); height: 8px; border-radius: 4px; width: 100px;"></div>
+                            </td>
+                            <td><span class="badge badge-red">87.5%</span></td>
+                        </tr>
+                        <tr class="fragment">
+                            <td><code>dns-us</code></td>
+                            <td>5</td>
+                            <td>
+                                <div style="background: linear-gradient(90deg, #d29922 62.5%, #30363d 62.5%); height: 8px; border-radius: 4px; width: 100px;"></div>
+                            </td>
+                            <td><span class="badge badge-yellow">62.5%</span></td>
+                        </tr>
+                        <tr class="fragment">
+                            <td><code>db</code></td>
+                            <td>3</td>
+                            <td>
+                                <div style="background: linear-gradient(90deg, #58a6ff 37.5%, #30363d 37.5%); height: 8px; border-radius: 4px; width: 100px;"></div>
+                            </td>
+                            <td><span class="badge badge-blue">37.5%</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- What-If Simulation -->
+            <section data-background="#161b22">
+                <h2>What-If Simulation</h2>
+                <p class="dim">Simulate before you execute</p>
+                <div class="two-col" style="margin-top: 1em;">
+                    <div class="fragment">
+                        <h3>Simulate Failure</h3>
+                        <pre><code data-trim>
+--down dns-primary,cache
+
+DOWN:     2 resources
+DEGRADED: 5 resources
+HEALTHY:  1 resource
+                        </code></pre>
+                    </div>
+                    <div class="fragment">
+                        <h3>Simulate Addition</h3>
+                        <pre><code data-trim>
++ cache-replica
+  Types: [CacheCluster]
+  Deps:  [dns-primary]
+
+Validation:
+  + Layer 2 (correct)
+  ~ Will be SPOF (no peer)
+  + 1 transitive dep
+                        </code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Web Explorer -->
+            <section>
+                <h2>Web Explorer</h2>
+                <div style="font-size: 0.8em;">
+                    <div class="three-col" style="margin-top: 1em;">
+                        <div class="box fragment">
+                            <div class="icon">&#128269;</div>
+                            <div class="box-title">Search</div>
+                            <div class="dim">Press <code>/</code> to fuzzy search nodes</div>
+                        </div>
+                        <div class="box fragment">
+                            <div class="icon">&#128736;</div>
+                            <div class="box-title">Layouts</div>
+                            <div class="dim">Hierarchical, force, circular, grid</div>
+                        </div>
+                        <div class="box fragment">
+                            <div class="icon">&#10133;</div>
+                            <div class="box-title">Add Resource</div>
+                            <div class="dim">Click nodes to add deps, validate</div>
+                        </div>
+                    </div>
+                    <div class="three-col" style="margin-top: 0.5em;">
+                        <div class="box fragment">
+                            <div class="icon">&#128279;</div>
+                            <div class="box-title">Path Finder</div>
+                            <div class="dim">Find path between any two nodes</div>
+                        </div>
+                        <div class="box fragment">
+                            <div class="icon">&#128248;</div>
+                            <div class="box-title">Export</div>
+                            <div class="dim">PNG export, shareable URLs</div>
+                        </div>
+                        <div class="box fragment">
+                            <div class="icon">&#9889;</div>
+                            <div class="box-title">What-If</div>
+                            <div class="dim">Simulate failures, see cascade</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Click to Add Demo -->
+            <section data-background="#0d1117">
+                <h2>Click-to-Add Workflow</h2>
+                <div class="flow" style="font-size: 0.9em; margin-top: 1.5em;">
+                    <div class="fragment box" style="padding: 0.5em 1em;">
+                        <span class="info">1.</span> Click + Add
+                    </div>
+                    <div class="flow-arrow fragment">&#8594;</div>
+                    <div class="fragment box" style="padding: 0.5em 1em;">
+                        <span class="info">2.</span> Click nodes in graph
+                    </div>
+                    <div class="flow-arrow fragment">&#8594;</div>
+                    <div class="fragment box" style="padding: 0.5em 1em;">
+                        <span class="info">3.</span> Validate
+                    </div>
+                    <div class="flow-arrow fragment">&#8594;</div>
+                    <div class="fragment box" style="padding: 0.5em 1em;">
+                        <span class="success">4.</span> Add to graph
+                    </div>
+                </div>
+                <div class="fragment" style="margin-top: 2em;">
+                    <p style="color: #8b949e;">Visual feedback:</p>
+                    <p>
+                        <span class="badge badge-blue">- - - dashed blue</span> = clickable
+                        <span class="badge badge-green" style="margin-left: 1em;">&#9473; solid green</span> = selected
+                    </p>
+                </div>
+            </section>
+
+            <!-- Value -->
+            <section>
+                <h2>Value Proposition</h2>
+                <div class="three-col" style="margin-top: 1em; font-size: 0.85em;">
+                    <div class="box fragment">
+                        <div style="color: #58a6ff; font-weight: 600;">For Engineers</div>
+                        <ul style="font-size: 0.9em; margin-top: 0.5em;">
+                            <li>See deps before touching</li>
+                            <li>Validate pre-CAB</li>
+                            <li>Single source of truth</li>
+                        </ul>
+                    </div>
+                    <div class="box fragment">
+                        <div style="color: #3fb950; font-weight: 600;">For Ops</div>
+                        <ul style="font-size: 0.9em; margin-top: 0.5em;">
+                            <li>Computed start order</li>
+                            <li>Auto SPOF detection</li>
+                            <li>One-click impact</li>
+                        </ul>
+                    </div>
+                    <div class="box fragment">
+                        <div style="color: #f0883e; font-weight: 600;">For Management</div>
+                        <ul style="font-size: 0.9em; margin-top: 0.5em;">
+                            <li>Fewer outages</li>
+                            <li>Faster CAB approval</li>
+                            <li>Living documentation</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tech Stack -->
+            <section>
+                <h2>Technical Stack</h2>
+                <table style="margin-top: 1em;">
+                    <tr class="fragment">
+                        <td><span class="badge badge-blue">Schema</span></td>
+                        <td>CUE</td>
+                        <td class="dim">Types + values + constraints</td>
+                    </tr>
+                    <tr class="fragment">
+                        <td><span class="badge badge-green">Visualization</span></td>
+                        <td>Cytoscape.js</td>
+                        <td class="dim">Graph rendering, layouts</td>
+                    </tr>
+                    <tr class="fragment">
+                        <td><span class="badge badge-yellow">CLI</span></td>
+                        <td>Nushell</td>
+                        <td class="dim">Structured data pipelines</td>
+                    </tr>
+                    <tr class="fragment">
+                        <td><span class="badge badge-blue">Data Format</span></td>
+                        <td>JSON-LD</td>
+                        <td class="dim">RDF-compatible, standard</td>
+                    </tr>
+                    <tr class="fragment">
+                        <td><span class="badge badge-green">Compute</span></td>
+                        <td>Client-side</td>
+                        <td class="dim">No server needed</td>
+                    </tr>
+                </table>
+            </section>
+
+            <!-- Current State -->
+            <section>
+                <h2>Current State</h2>
+                <div class="two-col" style="font-size: 0.85em;">
+                    <div>
+                        <h3 class="success">Working</h3>
+                        <ul>
+                            <li>Core graph patterns</li>
+                            <li>Web explorer + analysis</li>
+                            <li>CLI diagram tool</li>
+                            <li>JSON-LD import</li>
+                            <li>Proxmox/Docker providers</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="dim">Roadmap</h3>
+                        <ul style="color: #6e7681;">
+                            <li>Kubernetes provider</li>
+                            <li>Live status overlay</li>
+                            <li>Cost annotations</li>
+                            <li>Terraform import</li>
+                            <li>Git change tracking</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Demo -->
+            <section data-background-gradient="linear-gradient(135deg, #238636 0%, #1a7f37 100%)">
+                <h2 style="color: white;">Live Demo</h2>
+                <div style="margin-top: 1.5em; font-size: 0.9em;">
+                    <p style="font-family: monospace; background: rgba(0,0,0,0.3); padding: 1em; border-radius: 8px;">
+                        quicue/site/index.html
+                    </p>
+                </div>
+                <ol style="text-align: left; max-width: 500px; margin: 1.5em auto; font-size: 0.8em;">
+                    <li class="fragment">Load <code>multi-region</code> (22 nodes)</li>
+                    <li class="fragment">Press <code>/</code>, search for <code>auth</code></li>
+                    <li class="fragment">Enable Impact Mode, click <code>auth</code></li>
+                    <li class="fragment">Check Analysis tab for SPOFs</li>
+                    <li class="fragment">Click <code>+ Add</code>, add <code>auth-replica</code></li>
+                    <li class="fragment">Validate: "No longer a SPOF"</li>
+                </ol>
+            </section>
+
+            <!-- End -->
+            <section data-background="#0d1117">
+                <h1>Questions?</h1>
+                <p style="margin-top: 2em; font-family: monospace; color: #58a6ff;">
+                    github.com/quicue/quicue
+                </p>
+                <div style="margin-top: 2em; font-size: 0.7em; color: #6e7681;">
+                    <p>patterns/graph.cue - Core patterns</p>
+                    <p>site/index.html - Web explorer</p>
+                    <p>quicue-nu/ - CLI tools</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/reveal.js@4.6.0/dist/reveal.js"></script>
+    <script src="https://unpkg.com/reveal.js@4.6.0/plugin/highlight/highlight.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            controls: true,
+            progress: true,
+            center: true,
+            transition: 'slide',
+            plugins: [ RevealHighlight ]
+        });
+    </script>
+</body>
+</html>

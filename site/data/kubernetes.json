@@ -1,0 +1,233 @@
+{
+    "nodes": [
+        {
+            "id": "k8s-cluster",
+            "types": {"KubernetesCluster": true, "Infrastructure": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 14,
+            "provider": "kubernetes",
+            "namespace": "default",
+            "cost": {"monthly_usd": 450, "hourly_usd": 0.625},
+            "status": {"health": "healthy", "ready": true}
+        },
+        {
+            "id": "ingress-nginx",
+            "types": {"Ingress": true, "LoadBalancer": true},
+            "depth": 1,
+            "ancestors": ["k8s-cluster"],
+            "dependents": 8,
+            "provider": "kubernetes",
+            "namespace": "ingress-nginx",
+            "cost": {"monthly_usd": 25, "hourly_usd": 0.035},
+            "status": {"health": "healthy", "ready": true, "replicas": "2/2"}
+        },
+        {
+            "id": "cert-manager",
+            "types": {"CertManager": true, "Security": true},
+            "depth": 1,
+            "ancestors": ["k8s-cluster"],
+            "dependents": 4,
+            "provider": "kubernetes",
+            "namespace": "cert-manager",
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy", "ready": true}
+        },
+        {
+            "id": "postgres-operator",
+            "types": {"Operator": true, "Database": true},
+            "depth": 1,
+            "ancestors": ["k8s-cluster"],
+            "dependents": 3,
+            "provider": "kubernetes",
+            "namespace": "postgres-system",
+            "cost": {"monthly_usd": 15, "hourly_usd": 0.021},
+            "status": {"health": "healthy", "ready": true}
+        },
+        {
+            "id": "redis-cluster",
+            "types": {"StatefulSet": true, "CacheCluster": true},
+            "depth": 2,
+            "ancestors": ["k8s-cluster", "ingress-nginx"],
+            "dependents": 4,
+            "provider": "kubernetes",
+            "namespace": "cache",
+            "cost": {"monthly_usd": 120, "hourly_usd": 0.167},
+            "status": {"health": "healthy", "ready": true, "replicas": "3/3"}
+        },
+        {
+            "id": "postgres-primary",
+            "types": {"StatefulSet": true, "Database": true, "CriticalInfra": true},
+            "depth": 2,
+            "ancestors": ["k8s-cluster", "postgres-operator"],
+            "dependents": 5,
+            "provider": "kubernetes",
+            "namespace": "database",
+            "cost": {"monthly_usd": 200, "hourly_usd": 0.278},
+            "status": {"health": "healthy", "ready": true, "replicas": "1/1"}
+        },
+        {
+            "id": "postgres-replica",
+            "types": {"StatefulSet": true, "Database": true},
+            "depth": 3,
+            "ancestors": ["k8s-cluster", "postgres-operator", "postgres-primary"],
+            "dependents": 1,
+            "provider": "kubernetes",
+            "namespace": "database",
+            "cost": {"monthly_usd": 150, "hourly_usd": 0.208},
+            "status": {"health": "healthy", "ready": true, "replicas": "2/2"}
+        },
+        {
+            "id": "api-deployment",
+            "types": {"Deployment": true, "APIServer": true},
+            "depth": 3,
+            "ancestors": ["k8s-cluster", "ingress-nginx", "postgres-primary", "redis-cluster", "cert-manager"],
+            "dependents": 3,
+            "provider": "kubernetes",
+            "namespace": "api",
+            "cost": {"monthly_usd": 180, "hourly_usd": 0.25},
+            "status": {"health": "healthy", "ready": true, "replicas": "3/3"}
+        },
+        {
+            "id": "api-service",
+            "types": {"Service": true, "ClusterIP": true},
+            "depth": 4,
+            "ancestors": ["k8s-cluster", "ingress-nginx", "api-deployment", "postgres-primary", "redis-cluster", "cert-manager"],
+            "dependents": 2,
+            "provider": "kubernetes",
+            "namespace": "api",
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy", "ready": true}
+        },
+        {
+            "id": "web-deployment",
+            "types": {"Deployment": true, "WebFrontend": true},
+            "depth": 4,
+            "ancestors": ["k8s-cluster", "ingress-nginx", "api-deployment", "cert-manager"],
+            "dependents": 1,
+            "provider": "kubernetes",
+            "namespace": "web",
+            "cost": {"monthly_usd": 90, "hourly_usd": 0.125},
+            "status": {"health": "degraded", "ready": true, "replicas": "2/3"}
+        },
+        {
+            "id": "web-service",
+            "types": {"Service": true, "ClusterIP": true},
+            "depth": 5,
+            "ancestors": ["k8s-cluster", "ingress-nginx", "web-deployment", "api-deployment", "cert-manager"],
+            "dependents": 0,
+            "provider": "kubernetes",
+            "namespace": "web",
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy", "ready": true}
+        },
+        {
+            "id": "worker-deployment",
+            "types": {"Deployment": true, "Worker": true},
+            "depth": 4,
+            "ancestors": ["k8s-cluster", "postgres-primary", "redis-cluster"],
+            "dependents": 1,
+            "provider": "kubernetes",
+            "namespace": "workers",
+            "cost": {"monthly_usd": 60, "hourly_usd": 0.083},
+            "status": {"health": "healthy", "ready": true, "replicas": "2/2"}
+        },
+        {
+            "id": "cronjob-cleanup",
+            "types": {"CronJob": true, "ScheduledJob": true},
+            "depth": 5,
+            "ancestors": ["k8s-cluster", "postgres-primary", "redis-cluster", "worker-deployment"],
+            "dependents": 0,
+            "provider": "kubernetes",
+            "namespace": "workers",
+            "cost": {"monthly_usd": 5, "hourly_usd": 0.007},
+            "status": {"health": "healthy", "lastRun": "2026-01-15T22:00:00Z"}
+        },
+        {
+            "id": "monitoring-stack",
+            "types": {"Deployment": true, "MonitoringServer": true},
+            "depth": 2,
+            "ancestors": ["k8s-cluster", "ingress-nginx"],
+            "dependents": 0,
+            "provider": "kubernetes",
+            "namespace": "monitoring",
+            "cost": {"monthly_usd": 75, "hourly_usd": 0.104},
+            "status": {"health": "healthy", "ready": true, "replicas": "1/1"}
+        },
+        {
+            "id": "configmap-api",
+            "types": {"ConfigMap": true, "Configuration": true},
+            "depth": 2,
+            "ancestors": ["k8s-cluster"],
+            "dependents": 1,
+            "provider": "kubernetes",
+            "namespace": "api",
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        }
+    ],
+    "edges": [
+        {"source": "k8s-cluster", "target": "ingress-nginx"},
+        {"source": "k8s-cluster", "target": "cert-manager"},
+        {"source": "k8s-cluster", "target": "postgres-operator"},
+        {"source": "ingress-nginx", "target": "redis-cluster"},
+        {"source": "postgres-operator", "target": "postgres-primary"},
+        {"source": "postgres-primary", "target": "postgres-replica"},
+        {"source": "ingress-nginx", "target": "api-deployment"},
+        {"source": "postgres-primary", "target": "api-deployment"},
+        {"source": "redis-cluster", "target": "api-deployment"},
+        {"source": "cert-manager", "target": "api-deployment"},
+        {"source": "api-deployment", "target": "api-service"},
+        {"source": "ingress-nginx", "target": "web-deployment"},
+        {"source": "api-deployment", "target": "web-deployment"},
+        {"source": "cert-manager", "target": "web-deployment"},
+        {"source": "web-deployment", "target": "web-service"},
+        {"source": "postgres-primary", "target": "worker-deployment"},
+        {"source": "redis-cluster", "target": "worker-deployment"},
+        {"source": "worker-deployment", "target": "cronjob-cleanup"},
+        {"source": "ingress-nginx", "target": "monitoring-stack"},
+        {"source": "configmap-api", "target": "api-deployment"}
+    ],
+    "topology": {
+        "layer_0": ["k8s-cluster"],
+        "layer_1": ["ingress-nginx", "cert-manager", "postgres-operator"],
+        "layer_2": ["redis-cluster", "postgres-primary", "monitoring-stack", "configmap-api"],
+        "layer_3": ["postgres-replica", "api-deployment"],
+        "layer_4": ["api-service", "web-deployment", "worker-deployment"],
+        "layer_5": ["web-service", "cronjob-cleanup"]
+    },
+    "roots": ["k8s-cluster"],
+    "leaves": ["web-service", "cronjob-cleanup", "monitoring-stack", "postgres-replica"],
+    "metrics": {
+        "total": 15,
+        "maxDepth": 5,
+        "edges": 20,
+        "roots": 1,
+        "leaves": 4,
+        "totalMonthlyCost": 1370
+    },
+    "validation": {"valid": true, "issues": []},
+    "history": [
+        {
+            "commit": "a1b2c3d",
+            "timestamp": "2026-01-15T20:30:00Z",
+            "author": "devops@example.com",
+            "message": "Scale web-deployment to 3 replicas",
+            "changes": [{"type": "modified", "resource": "web-deployment", "field": "replicas", "from": 2, "to": 3}]
+        },
+        {
+            "commit": "e4f5g6h",
+            "timestamp": "2026-01-14T15:00:00Z",
+            "author": "sre@example.com",
+            "message": "Add postgres-replica for read scaling",
+            "changes": [{"type": "added", "resource": "postgres-replica"}]
+        },
+        {
+            "commit": "i7j8k9l",
+            "timestamp": "2026-01-12T10:00:00Z",
+            "author": "devops@example.com",
+            "message": "Initial k8s cluster setup",
+            "changes": [{"type": "added", "resource": "k8s-cluster"}, {"type": "added", "resource": "ingress-nginx"}]
+        }
+    ]
+}

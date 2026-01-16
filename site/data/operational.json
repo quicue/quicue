@@ -2,247 +2,169 @@
     "nodes": [
         {
             "id": "pve-node",
-            "types": {
-                "VirtualizationPlatform": true
-            },
+            "types": {"VirtualizationPlatform": true},
             "depth": 0,
             "ancestors": [],
-            "dependents": 7
+            "dependents": 7,
+            "cost": {"monthly_usd": 350, "hourly_usd": 0.486},
+            "status": {"health": "healthy", "cpu": 45, "memory": 62}
         },
         {
             "id": "dns",
-            "types": {
-                "DNSServer": true,
-                "CriticalInfra": true
-            },
+            "types": {"DNSServer": true, "CriticalInfra": true},
             "depth": 1,
-            "ancestors": [
-                "pve-node"
-            ],
-            "dependents": 5
+            "ancestors": ["pve-node"],
+            "dependents": 5,
+            "cost": {"monthly_usd": 25, "hourly_usd": 0.035},
+            "status": {"health": "healthy", "queries_per_sec": 1250}
         },
         {
             "id": "auth",
-            "types": {
-                "AuthServer": true
-            },
+            "types": {"AuthServer": true},
             "depth": 1,
-            "ancestors": [
-                "pve-node"
-            ],
-            "dependents": 2
+            "ancestors": ["pve-node"],
+            "dependents": 2,
+            "cost": {"monthly_usd": 45, "hourly_usd": 0.063},
+            "status": {"health": "healthy", "active_sessions": 342}
         },
         {
             "id": "db",
-            "types": {
-                "Database": true
-            },
+            "types": {"Database": true},
             "depth": 2,
-            "ancestors": [
-                "dns",
-                "pve-node"
-            ],
-            "dependents": 3
+            "ancestors": ["dns", "pve-node"],
+            "dependents": 3,
+            "cost": {"monthly_usd": 180, "hourly_usd": 0.25},
+            "status": {"health": "healthy", "connections": 47, "replication_lag_ms": 0}
         },
         {
             "id": "cache",
-            "types": {
-                "CacheCluster": true
-            },
+            "types": {"CacheCluster": true},
             "depth": 2,
-            "ancestors": [
-                "dns",
-                "pve-node"
-            ],
-            "dependents": 3
+            "ancestors": ["dns", "pve-node"],
+            "dependents": 3,
+            "cost": {"monthly_usd": 95, "hourly_usd": 0.132},
+            "status": {"health": "healthy", "hit_rate": 94.2, "memory_used_pct": 68}
         },
         {
             "id": "api",
-            "types": {
-                "APIServer": true
-            },
+            "types": {"APIServer": true},
             "depth": 3,
-            "ancestors": [
-                "db",
-                "cache",
-                "auth",
-                "dns",
-                "pve-node"
-            ],
-            "dependents": 1
+            "ancestors": ["db", "cache", "auth", "dns", "pve-node"],
+            "dependents": 1,
+            "cost": {"monthly_usd": 120, "hourly_usd": 0.167},
+            "status": {"health": "degraded", "error_rate": 2.3, "p99_latency_ms": 450}
         },
         {
             "id": "web",
-            "types": {
-                "WebServer": true
-            },
+            "types": {"WebServer": true},
             "depth": 4,
-            "ancestors": [
-                "api",
-                "db",
-                "cache",
-                "auth",
-                "dns",
-                "pve-node"
-            ],
-            "dependents": 0
+            "ancestors": ["api", "db", "cache", "auth", "dns", "pve-node"],
+            "dependents": 0,
+            "cost": {"monthly_usd": 60, "hourly_usd": 0.083},
+            "status": {"health": "degraded", "active_requests": 1247}
         },
         {
             "id": "worker",
-            "types": {
-                "Worker": true
-            },
+            "types": {"Worker": true},
             "depth": 3,
-            "ancestors": [
-                "db",
-                "cache",
-                "dns",
-                "pve-node"
-            ],
-            "dependents": 0
+            "ancestors": ["db", "cache", "dns", "pve-node"],
+            "dependents": 0,
+            "cost": {"monthly_usd": 40, "hourly_usd": 0.056},
+            "status": {"health": "healthy", "queue_depth": 23, "processing_rate": 145}
         }
     ],
     "edges": [
-        {
-            "source": "pve-node",
-            "target": "dns"
-        },
-        {
-            "source": "pve-node",
-            "target": "auth"
-        },
-        {
-            "source": "dns",
-            "target": "db"
-        },
-        {
-            "source": "dns",
-            "target": "cache"
-        },
-        {
-            "source": "db",
-            "target": "api"
-        },
-        {
-            "source": "cache",
-            "target": "api"
-        },
-        {
-            "source": "auth",
-            "target": "api"
-        },
-        {
-            "source": "api",
-            "target": "web"
-        },
-        {
-            "source": "db",
-            "target": "worker"
-        },
-        {
-            "source": "cache",
-            "target": "worker"
-        }
+        {"source": "pve-node", "target": "dns"},
+        {"source": "pve-node", "target": "auth"},
+        {"source": "dns", "target": "db"},
+        {"source": "dns", "target": "cache"},
+        {"source": "db", "target": "api"},
+        {"source": "cache", "target": "api"},
+        {"source": "auth", "target": "api"},
+        {"source": "api", "target": "web"},
+        {"source": "db", "target": "worker"},
+        {"source": "cache", "target": "worker"}
     ],
     "topology": {
-        "layer_0": [
-            "pve-node"
-        ],
-        "layer_1": [
-            "dns",
-            "auth"
-        ],
-        "layer_2": [
-            "db",
-            "cache"
-        ],
-        "layer_3": [
-            "api",
-            "worker"
-        ],
-        "layer_4": [
-            "web"
-        ]
+        "layer_0": ["pve-node"],
+        "layer_1": ["dns", "auth"],
+        "layer_2": ["db", "cache"],
+        "layer_3": ["api", "worker"],
+        "layer_4": ["web"]
     },
-    "roots": [
-        "pve-node"
-    ],
-    "leaves": [
-        "web",
-        "worker"
-    ],
+    "roots": ["pve-node"],
+    "leaves": ["web", "worker"],
     "criticality": [
-        {
-            "name": "pve-node",
-            "dependents": 7
-        },
-        {
-            "name": "dns",
-            "dependents": 5
-        },
-        {
-            "name": "auth",
-            "dependents": 2
-        },
-        {
-            "name": "db",
-            "dependents": 3
-        },
-        {
-            "name": "cache",
-            "dependents": 3
-        },
-        {
-            "name": "api",
-            "dependents": 1
-        },
-        {
-            "name": "web",
-            "dependents": 0
-        },
-        {
-            "name": "worker",
-            "dependents": 0
-        }
+        {"name": "pve-node", "dependents": 7},
+        {"name": "dns", "dependents": 5},
+        {"name": "auth", "dependents": 2},
+        {"name": "db", "dependents": 3},
+        {"name": "cache", "dependents": 3},
+        {"name": "api", "dependents": 1},
+        {"name": "web", "dependents": 0},
+        {"name": "worker", "dependents": 0}
     ],
     "byType": {
-        "VirtualizationPlatform": [
-            "pve-node"
-        ],
-        "DNSServer": [
-            "dns"
-        ],
-        "CriticalInfra": [
-            "dns"
-        ],
-        "AuthServer": [
-            "auth"
-        ],
-        "Database": [
-            "db"
-        ],
-        "CacheCluster": [
-            "cache"
-        ],
-        "APIServer": [
-            "api"
-        ],
-        "WebServer": [
-            "web"
-        ],
-        "Worker": [
-            "worker"
-        ]
+        "VirtualizationPlatform": ["pve-node"],
+        "DNSServer": ["dns"],
+        "CriticalInfra": ["dns"],
+        "AuthServer": ["auth"],
+        "Database": ["db"],
+        "CacheCluster": ["cache"],
+        "APIServer": ["api"],
+        "WebServer": ["web"],
+        "Worker": ["worker"]
     },
+    "spof": [
+        {"name": "pve-node", "dependents": 7, "types": ["VirtualizationPlatform"], "depth": 0},
+        {"name": "dns", "dependents": 5, "types": ["DNSServer", "CriticalInfra"], "depth": 1},
+        {"name": "auth", "dependents": 2, "types": ["AuthServer"], "depth": 1},
+        {"name": "db", "dependents": 3, "types": ["Database"], "depth": 2},
+        {"name": "cache", "dependents": 3, "types": ["CacheCluster"], "depth": 2},
+        {"name": "api", "dependents": 1, "types": ["APIServer"], "depth": 3}
+    ],
+    "coupling": [
+        {"name": "pve-node", "dependents": 7, "percentage": 87.5},
+        {"name": "dns", "dependents": 5, "percentage": 62.5},
+        {"name": "db", "dependents": 3, "percentage": 37.5},
+        {"name": "cache", "dependents": 3, "percentage": 37.5}
+    ],
     "metrics": {
         "total": 8,
         "maxDepth": 4,
         "edges": 10,
         "roots": 1,
-        "leaves": 2
+        "leaves": 2,
+        "spofCount": 6,
+        "couplingCount": 4,
+        "totalMonthlyCost": 915
     },
-    "validation": {
-        "valid": true,
-        "issues": []
-    }
+    "validation": {"valid": true, "issues": []},
+    "history": [
+        {
+            "commit": "abc1234",
+            "timestamp": "2026-01-15T14:30:00Z",
+            "author": "ops@example.com",
+            "message": "Increase cache memory allocation",
+            "changes": [{"type": "modified", "resource": "cache", "field": "memory", "from": "4GB", "to": "8GB"}]
+        },
+        {
+            "commit": "def5678",
+            "timestamp": "2026-01-14T09:15:00Z",
+            "author": "devops@example.com",
+            "message": "Add worker process for background jobs",
+            "changes": [{"type": "added", "resource": "worker"}]
+        },
+        {
+            "commit": "ghi9012",
+            "timestamp": "2026-01-10T16:00:00Z",
+            "author": "admin@example.com",
+            "message": "Initial infrastructure setup",
+            "changes": [
+                {"type": "added", "resource": "pve-node"},
+                {"type": "added", "resource": "dns"},
+                {"type": "added", "resource": "db"}
+            ]
+        }
+    ]
 }

@@ -1,0 +1,182 @@
+{
+    "nodes": [
+        {
+            "id": "aws_vpc.main",
+            "types": {"VPC": true, "Network": true, "Infrastructure": true},
+            "depth": 0,
+            "ancestors": [],
+            "dependents": 11,
+            "terraform": {"resource_type": "aws_vpc", "address": "aws_vpc.main"},
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "aws_subnet.public_a",
+            "types": {"Subnet": true, "Network": true},
+            "depth": 1,
+            "ancestors": ["aws_vpc.main"],
+            "dependents": 5,
+            "terraform": {"resource_type": "aws_subnet", "address": "aws_subnet.public_a"},
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "aws_subnet.public_b",
+            "types": {"Subnet": true, "Network": true},
+            "depth": 1,
+            "ancestors": ["aws_vpc.main"],
+            "dependents": 4,
+            "terraform": {"resource_type": "aws_subnet", "address": "aws_subnet.public_b"},
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "aws_security_group.web",
+            "types": {"SecurityGroup": true, "Security": true},
+            "depth": 1,
+            "ancestors": ["aws_vpc.main"],
+            "dependents": 3,
+            "terraform": {"resource_type": "aws_security_group", "address": "aws_security_group.web"},
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "aws_security_group.db",
+            "types": {"SecurityGroup": true, "Security": true},
+            "depth": 1,
+            "ancestors": ["aws_vpc.main"],
+            "dependents": 1,
+            "terraform": {"resource_type": "aws_security_group", "address": "aws_security_group.db"},
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "aws_lb.main",
+            "types": {"LoadBalancer": true, "ALB": true},
+            "depth": 2,
+            "ancestors": ["aws_vpc.main", "aws_subnet.public_a", "aws_subnet.public_b", "aws_security_group.web"],
+            "dependents": 3,
+            "terraform": {"resource_type": "aws_lb", "address": "aws_lb.main"},
+            "cost": {"monthly_usd": 22.50, "hourly_usd": 0.031},
+            "status": {"health": "healthy", "state": "active"}
+        },
+        {
+            "id": "aws_rds_cluster.main",
+            "types": {"Database": true, "RDS": true, "CriticalInfra": true},
+            "depth": 2,
+            "ancestors": ["aws_vpc.main", "aws_subnet.public_a", "aws_subnet.public_b", "aws_security_group.db"],
+            "dependents": 2,
+            "terraform": {"resource_type": "aws_rds_cluster", "address": "aws_rds_cluster.main"},
+            "cost": {"monthly_usd": 145, "hourly_usd": 0.201},
+            "status": {"health": "healthy", "state": "available"}
+        },
+        {
+            "id": "aws_elasticache_cluster.redis",
+            "types": {"CacheCluster": true, "ElastiCache": true},
+            "depth": 2,
+            "ancestors": ["aws_vpc.main", "aws_subnet.public_a", "aws_security_group.web"],
+            "dependents": 1,
+            "terraform": {"resource_type": "aws_elasticache_cluster", "address": "aws_elasticache_cluster.redis"},
+            "cost": {"monthly_usd": 50, "hourly_usd": 0.069},
+            "status": {"health": "healthy", "state": "available"}
+        },
+        {
+            "id": "aws_ecs_cluster.main",
+            "types": {"ECSCluster": true, "Container": true},
+            "depth": 2,
+            "ancestors": ["aws_vpc.main"],
+            "dependents": 2,
+            "terraform": {"resource_type": "aws_ecs_cluster", "address": "aws_ecs_cluster.main"},
+            "cost": {"monthly_usd": 0, "hourly_usd": 0},
+            "status": {"health": "healthy"}
+        },
+        {
+            "id": "aws_ecs_service.api",
+            "types": {"ECSService": true, "APIServer": true},
+            "depth": 3,
+            "ancestors": ["aws_vpc.main", "aws_ecs_cluster.main", "aws_lb.main", "aws_rds_cluster.main", "aws_elasticache_cluster.redis", "aws_subnet.public_a", "aws_subnet.public_b", "aws_security_group.web"],
+            "dependents": 1,
+            "terraform": {"resource_type": "aws_ecs_service", "address": "aws_ecs_service.api"},
+            "cost": {"monthly_usd": 73, "hourly_usd": 0.101},
+            "status": {"health": "healthy", "desiredCount": 2, "runningCount": 2}
+        },
+        {
+            "id": "aws_ecs_service.web",
+            "types": {"ECSService": true, "WebFrontend": true},
+            "depth": 4,
+            "ancestors": ["aws_vpc.main", "aws_ecs_cluster.main", "aws_lb.main", "aws_ecs_service.api", "aws_subnet.public_a", "aws_subnet.public_b", "aws_security_group.web"],
+            "dependents": 0,
+            "terraform": {"resource_type": "aws_ecs_service", "address": "aws_ecs_service.web"},
+            "cost": {"monthly_usd": 36.50, "hourly_usd": 0.051},
+            "status": {"health": "healthy", "desiredCount": 2, "runningCount": 2}
+        },
+        {
+            "id": "aws_cloudwatch_log_group.app",
+            "types": {"LogGroup": true, "Observability": true},
+            "depth": 3,
+            "ancestors": ["aws_ecs_cluster.main", "aws_vpc.main"],
+            "dependents": 0,
+            "terraform": {"resource_type": "aws_cloudwatch_log_group", "address": "aws_cloudwatch_log_group.app"},
+            "cost": {"monthly_usd": 5, "hourly_usd": 0.007},
+            "status": {"health": "healthy"}
+        }
+    ],
+    "edges": [
+        {"source": "aws_vpc.main", "target": "aws_subnet.public_a"},
+        {"source": "aws_vpc.main", "target": "aws_subnet.public_b"},
+        {"source": "aws_vpc.main", "target": "aws_security_group.web"},
+        {"source": "aws_vpc.main", "target": "aws_security_group.db"},
+        {"source": "aws_subnet.public_a", "target": "aws_lb.main"},
+        {"source": "aws_subnet.public_b", "target": "aws_lb.main"},
+        {"source": "aws_security_group.web", "target": "aws_lb.main"},
+        {"source": "aws_subnet.public_a", "target": "aws_rds_cluster.main"},
+        {"source": "aws_subnet.public_b", "target": "aws_rds_cluster.main"},
+        {"source": "aws_security_group.db", "target": "aws_rds_cluster.main"},
+        {"source": "aws_subnet.public_a", "target": "aws_elasticache_cluster.redis"},
+        {"source": "aws_security_group.web", "target": "aws_elasticache_cluster.redis"},
+        {"source": "aws_vpc.main", "target": "aws_ecs_cluster.main"},
+        {"source": "aws_ecs_cluster.main", "target": "aws_ecs_service.api"},
+        {"source": "aws_lb.main", "target": "aws_ecs_service.api"},
+        {"source": "aws_rds_cluster.main", "target": "aws_ecs_service.api"},
+        {"source": "aws_elasticache_cluster.redis", "target": "aws_ecs_service.api"},
+        {"source": "aws_ecs_service.api", "target": "aws_ecs_service.web"},
+        {"source": "aws_lb.main", "target": "aws_ecs_service.web"},
+        {"source": "aws_ecs_cluster.main", "target": "aws_cloudwatch_log_group.app"}
+    ],
+    "topology": {
+        "layer_0": ["aws_vpc.main"],
+        "layer_1": ["aws_subnet.public_a", "aws_subnet.public_b", "aws_security_group.web", "aws_security_group.db"],
+        "layer_2": ["aws_lb.main", "aws_rds_cluster.main", "aws_elasticache_cluster.redis", "aws_ecs_cluster.main"],
+        "layer_3": ["aws_ecs_service.api", "aws_cloudwatch_log_group.app"],
+        "layer_4": ["aws_ecs_service.web"]
+    },
+    "roots": ["aws_vpc.main"],
+    "leaves": ["aws_ecs_service.web", "aws_cloudwatch_log_group.app"],
+    "metrics": {
+        "total": 12,
+        "maxDepth": 4,
+        "edges": 20,
+        "roots": 1,
+        "leaves": 2,
+        "totalMonthlyCost": 332
+    },
+    "validation": {"valid": true, "issues": []},
+    "source": "terraform",
+    "terraformVersion": "1.5.0",
+    "history": [
+        {
+            "commit": "tf-apply-001",
+            "timestamp": "2026-01-15T18:00:00Z",
+            "author": "terraform-cloud",
+            "message": "terraform apply - Add elasticache cluster",
+            "changes": [{"type": "added", "resource": "aws_elasticache_cluster.redis"}]
+        },
+        {
+            "commit": "tf-apply-000",
+            "timestamp": "2026-01-10T12:00:00Z",
+            "author": "terraform-cloud",
+            "message": "terraform apply - Initial infrastructure",
+            "changes": [{"type": "added", "resource": "aws_vpc.main"}, {"type": "added", "resource": "aws_ecs_cluster.main"}]
+        }
+    ]
+}
