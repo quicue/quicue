@@ -3240,34 +3240,42 @@ ${paramLines}
         cy.animate({ center: { eles: node }, duration: 300 });
     }
 
-    document.getElementById('search-input').addEventListener('input', (e) => {
-        updateSearchResults(e.target.value);
-    });
+    // Defer search event listeners until DOM is ready
+    function initSearchListeners() {
+        const searchInput = document.getElementById('search-input');
+        const searchModal = document.getElementById('search-modal');
+        if (!searchInput || !searchModal) return;
 
-    document.getElementById('search-input').addEventListener('keydown', (e) => {
-        const resultsEl = document.getElementById('search-results');
-        const results = resultsEl.querySelectorAll('.search-result');
+        searchInput.addEventListener('input', (e) => {
+            updateSearchResults(e.target.value);
+        });
 
-        if (e.key === 'Escape') {
-            closeSearch();
-        } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            searchSelectedIndex = Math.min(searchSelectedIndex + 1, results.length - 1);
-            results.forEach((r, i) => r.classList.toggle('selected', i === searchSelectedIndex));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            searchSelectedIndex = Math.max(searchSelectedIndex - 1, 0);
-            results.forEach((r, i) => r.classList.toggle('selected', i === searchSelectedIndex));
-        } else if (e.key === 'Enter') {
-            if (searchFilteredNodes[searchSelectedIndex]) {
-                selectSearchResult(searchFilteredNodes[searchSelectedIndex].id);
+        searchInput.addEventListener('keydown', (e) => {
+            const resultsEl = document.getElementById('search-results');
+            const results = resultsEl.querySelectorAll('.search-result');
+
+            if (e.key === 'Escape') {
+                closeSearch();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                searchSelectedIndex = Math.min(searchSelectedIndex + 1, results.length - 1);
+                results.forEach((r, i) => r.classList.toggle('selected', i === searchSelectedIndex));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                searchSelectedIndex = Math.max(searchSelectedIndex - 1, 0);
+                results.forEach((r, i) => r.classList.toggle('selected', i === searchSelectedIndex));
+            } else if (e.key === 'Enter') {
+                if (searchFilteredNodes[searchSelectedIndex]) {
+                    selectSearchResult(searchFilteredNodes[searchSelectedIndex].id);
+                }
             }
-        }
-    });
+        });
 
-    document.getElementById('search-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'search-modal') closeSearch();
-    });
+        searchModal.addEventListener('click', (e) => {
+            if (e.target.id === 'search-modal') closeSearch();
+        });
+    }
+    document.addEventListener('DOMContentLoaded', initSearchListeners);
 
     // Global keyboard shortcut for search
     document.addEventListener('keydown', (e) => {
@@ -4878,7 +4886,7 @@ cue export ./adapters/topdesk/ -e jsonld --out json
     function startDemoTour() {
         // Load operational example for demo (has cost + status data)
         document.getElementById('example-select').value = 'operational';
-        loadExample('operational');
+        init('operational');
 
         setTimeout(() => {
             document.getElementById('demo-start').style.display = 'none';
