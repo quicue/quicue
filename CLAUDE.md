@@ -91,6 +91,8 @@ LIBRARY LAYER (quicue ecosystem) - Generic, reusable patterns
 ├── quicue.ca/infra     → Infrastructure projections (#DCOverview, etc.)
 ├── quicue.ca/proxmox   → Proxmox provider templates
 ├── quicue.ca/docker    → Docker provider templates
+├── meta.quicue.ca      → Knowledge graph (projects, decisions, patterns)
+├── quicue.ca/docs      → Ecosystem documentation generator
 └── ...
 
 INSTANCE LAYER (consumers) - Specific deployments
