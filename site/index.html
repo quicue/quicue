@@ -3684,17 +3684,20 @@ ${paramLines}
         renderDepTags();
     }
 
-    document.getElementById('add-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'add-modal') closeAddResource();
-    });
+    // These event listeners must wait for DOM to be ready since modals are defined after this script
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('add-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'add-modal') closeAddResource();
+        });
 
-    document.getElementById('add-resource-dep-select').addEventListener('change', (e) => {
-        const dep = e.target.value;
-        if (dep && !newResourceDeps.includes(dep)) {
-            newResourceDeps.push(dep);
-            renderDepTags();
-        }
-        e.target.value = '';
+        document.getElementById('add-resource-dep-select').addEventListener('change', (e) => {
+            const dep = e.target.value;
+            if (dep && !newResourceDeps.includes(dep)) {
+                newResourceDeps.push(dep);
+                renderDepTags();
+            }
+            e.target.value = '';
+        });
     });
 
     function renderDepTags() {
