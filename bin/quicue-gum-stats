@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# quicue-gum-stats - Pretty statistics card
+set -e
+
+PATH_ARG="${1:-.}"
+
+# Get data
+DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
+       cue export "$PATH_ARG" -e '_viz.data' --out json)
+
+TOTAL=$(echo "$DATA" | jq '.metrics.total')
+MAX_DEPTH=$(echo "$DATA" | jq '.metrics.maxDepth')
+ROOTS=$(echo "$DATA" | jq '.metrics.roots')
+LEAVES=$(echo "$DATA" | jq '.metrics.leaves')
+EDGES=$(echo "$DATA" | jq '.metrics.edges')
+
+# Header
+gum style --border double --padding "1 2" --border-foreground 99 \
+    --foreground 99 --bold "Infrastructure Graph"
+
+echo ""
+
+# Stats grid
+gum join --horizontal \
+    "$(gum style --border rounded --padding "0 2" --border-foreground 212 \
+        "$(gum style --foreground 212 --bold "$TOTAL")" \
+        "$(gum style --foreground 245 "Resources")")" \
+    "$(gum style --border rounded --padding "0 2" --border-foreground 156 \
+        "$(gum style --foreground 156 --bold "$MAX_DEPTH")" \
+        "$(gum style --foreground 245 "Max Depth")")" \
+    "$(gum style --border rounded --padding "0 2" --border-foreground 220 \
+        "$(gum style --foreground 220 --bold "$ROOTS")" \
+        "$(gum style --foreground 245 "Roots")")" \
+    "$(gum style --border rounded --padding "0 2" --border-foreground 204 \
+        "$(gum style --foreground 204 --bold "$LEAVES")" \
+        "$(gum style --foreground 245 "Leaves")")"
+
+echo ""
+
+# Types breakdown
+gum style --foreground 245 "Types:"
+echo "$DATA" | jq -r '.nodes | group_by(.types[0]) | map({type: .[0].types[0], count: length}) | sort_by(-.count) | .[] | "  \(.type): \(.count)"'

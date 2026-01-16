@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# quicue-gum-impact - Pretty impact analysis
+set -e
+
+TARGET="$1"
+PATH_ARG="${2:-.}"
+
+if [ -z "$TARGET" ]; then
+    gum style --foreground 196 "Usage: quicue-gum impact <target> [path]"
+    exit 1
+fi
+
+# Get data
+DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
+       cue export "$PATH_ARG" -e '_viz.data' --out json)
+
+TOTAL=$(echo "$DATA" | jq '.metrics.total')
+
+# Find dependents of target
+AFFECTED=$(echo "$DATA" | jq -r --arg t "$TARGET" '
+    .nodes[] | select(.ancestors | index($t)) | .name
+' | sort)
+
+AFFECTED_COUNT=$(echo "$AFFECTED" | grep -c . || echo 0)
+PCT=$((AFFECTED_COUNT * 100 / TOTAL))
+
+# Color based on severity
+if [ "$PCT" -gt 50 ]; then
+    COLOR="196"  # Red
+elif [ "$PCT" -gt 25 ]; then
+    COLOR="220"  # Yellow
+else
+    COLOR="156"  # Green
+fi
+
+# Header
+gum style --border double --padding "1 2" --border-foreground "$COLOR" \
+    "$(gum style --foreground "$COLOR" --bold "Impact Analysis: $TARGET")"
+
+echo ""
+
+# Stats
+gum join --horizontal \
+    "$(gum style --border rounded --padding "0 2" --border-foreground "$COLOR" \
+        "$(gum style --foreground "$COLOR" --bold "$AFFECTED_COUNT / $TOTAL")" \
+        "$(gum style --foreground 245 "Affected")")" \
+    "$(gum style --border rounded --padding "0 2" --border-foreground "$COLOR" \
+        "$(gum style --foreground "$COLOR" --bold "$PCT%")" \
+        "$(gum style --foreground 245 "Blast Radius")")"
+
+echo ""
+
+if [ "$AFFECTED_COUNT" -gt 0 ]; then
+    gum style --foreground 245 "Affected resources:"
+    echo "$AFFECTED" | while read -r name; do
+        gum style --foreground "$COLOR" "  - $name"
+    done
+fi
