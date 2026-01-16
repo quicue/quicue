@@ -4111,30 +4111,60 @@ ${paramLines}
     // JSON-LD LOADER
     // ═══════════════════════════════════════════════════════════════════════════
 
-    document.getElementById('load-jsonld-btn').addEventListener('click', () => {
-        document.getElementById('jsonld-modal').style.display = 'flex';
-    });
+    // These event listeners must wait for DOM since modals are defined after script
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('load-jsonld-btn').addEventListener('click', () => {
+            document.getElementById('jsonld-modal').style.display = 'flex';
+        });
 
-    document.getElementById('jsonld-modal-close').addEventListener('click', () => {
-        document.getElementById('jsonld-modal').style.display = 'none';
-    });
-
-    document.getElementById('jsonld-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'jsonld-modal') {
+        document.getElementById('jsonld-modal-close').addEventListener('click', () => {
             document.getElementById('jsonld-modal').style.display = 'none';
-        }
-    });
+        });
 
-    // Detect fields when JSON-LD is pasted
-    document.getElementById('jsonld-input').addEventListener('input', (e) => {
-        try {
-            const input = JSON.parse(e.target.value);
-            detectJsonLdFields(input);
-            document.getElementById('jsonld-error').textContent = '';
-        } catch (err) {
-            document.getElementById('jsonld-error').textContent = 'Invalid JSON: ' + err.message;
-        }
-    });
+        document.getElementById('jsonld-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'jsonld-modal') {
+                document.getElementById('jsonld-modal').style.display = 'none';
+            }
+        });
+
+        // Detect fields when JSON-LD is pasted
+        document.getElementById('jsonld-input').addEventListener('input', (e) => {
+            try {
+                const input = JSON.parse(e.target.value);
+                detectJsonLdFields(input);
+                document.getElementById('jsonld-error').textContent = '';
+            } catch (err) {
+                document.getElementById('jsonld-error').textContent = 'Invalid JSON: ' + err.message;
+            }
+        });
+
+        document.getElementById('jsonld-load-btn').addEventListener('click', () => {
+            try {
+                const input = JSON.parse(document.getElementById('jsonld-input').value);
+                const depField = document.getElementById('jsonld-dep-field').value;
+
+                if (!depField) {
+                    document.getElementById('jsonld-error').textContent = 'Please select a dependency field';
+                    return;
+                }
+
+                const normalized = normalizeJsonLd(input, depField);
+                const computed = computePatterns(normalized);
+
+                // Load into visualization
+                graphData = computed;
+                reinitGraph();
+                populateTimelineView();
+
+                document.getElementById('jsonld-modal').style.display = 'none';
+                document.getElementById('example-select').value = '';
+
+            } catch (err) {
+                document.getElementById('jsonld-error').textContent = 'Error: ' + err.message;
+                console.error(err);
+            }
+        });
+    }); // End DOMContentLoaded for JSON-LD loader
 
     function detectJsonLdFields(input) {
         // Extract resources from @graph or top-level object
@@ -4179,33 +4209,6 @@ ${paramLines}
         document.getElementById('jsonld-preview').textContent =
             `Detected ${Object.keys(resources).length} resources`;
     }
-
-    document.getElementById('jsonld-load-btn').addEventListener('click', () => {
-        try {
-            const input = JSON.parse(document.getElementById('jsonld-input').value);
-            const depField = document.getElementById('jsonld-dep-field').value;
-
-            if (!depField) {
-                document.getElementById('jsonld-error').textContent = 'Please select a dependency field';
-                return;
-            }
-
-            const normalized = normalizeJsonLd(input, depField);
-            const computed = computePatterns(normalized);
-
-            // Load into visualization
-            graphData = computed;
-            reinitGraph();
-            populateTimelineView();
-
-            document.getElementById('jsonld-modal').style.display = 'none';
-            document.getElementById('example-select').value = '';
-
-        } catch (err) {
-            document.getElementById('jsonld-error').textContent = 'Error: ' + err.message;
-            console.error(err);
-        }
-    });
 
     // Normalize JSON-LD to quicue format
     function normalizeJsonLd(input, depField) {
