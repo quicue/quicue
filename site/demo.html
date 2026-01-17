@@ -252,8 +252,11 @@
         <h1>quicue <span>/ demo</span></h1>
         <div class="progress-dots" id="progress-dots"></div>
         <select id="example-select">
+            <option value="graph-patterns">Patterns (5 nodes)</option>
+            <option value="operational">Web Stack (8 nodes)</option>
             <option value="incident-cascade">Incident Cascade (9 nodes)</option>
-            <option value="operational">Ops Stack (8 nodes)</option>
+            <option value="cicd-pipeline">CI/CD Pipeline (9 nodes)</option>
+            <option value="microservices-mesh">Microservices (12 nodes)</option>
             <option value="multi-region">Multi-Region (22 nodes)</option>
         </select>
         <a href="index.html" class="skip-link">Skip to Explorer</a>
@@ -273,7 +276,7 @@
     let cy = null;
     let currentStep = 0;
     let graphData = null;
-    let currentExample = 'incident-cascade';
+    let currentExample = 'graph-patterns';
     let interactionComplete = false;
 
     // Query-focused demo showing CUE patterns

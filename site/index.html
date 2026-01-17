@@ -1042,16 +1042,16 @@
     <header>
         <h1><a href="https://github.com/quicue/quicue">quicue</a> <span>/ graph explorer</span></h1>
         <select id="example-select">
-            <option value="graph-patterns">Basic Patterns (5 nodes)</option>
-            <option value="operational">Ops Stack (8 nodes)</option>
+            <option value="graph-patterns">Patterns (5 nodes)</option>
+            <option value="operational">Web Stack (8 nodes)</option>
             <option value="incident-cascade">Incident Cascade (9 nodes)</option>
             <option value="cicd-pipeline">CI/CD Pipeline (9 nodes)</option>
-            <option value="microservices-mesh">Microservices Mesh (12 nodes)</option>
-            <option value="cab-datacenter">CAB Datacenter (7 nodes)</option>
-            <option value="topdesk-import">TopDesk CMDB (8 nodes)</option>
-            <option value="vmware-import">VMware vSphere (10 nodes)</option>
-            <option value="multi-region">Multi-Region HA (22 nodes)</option>
-            <option value="kubernetes">Kubernetes Cluster (15 nodes)</option>
+            <option value="microservices-mesh">Microservices (12 nodes)</option>
+            <option value="cab-datacenter">Proxmox Datacenter (7 nodes)</option>
+            <option value="topdesk-import">TopDesk Import (8 nodes)</option>
+            <option value="vmware-import">VMware Import (10 nodes)</option>
+            <option value="multi-region">Multi-Region (22 nodes)</option>
+            <option value="kubernetes">Kubernetes (15 nodes)</option>
             <option value="terraform-aws">Terraform AWS (12 nodes)</option>
         </select>
         <button id="load-jsonld-btn" style="background: #238636; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">Load JSON-LD</button>
@@ -1712,13 +1712,18 @@
     const exampleInsights = {
         'graph-patterns': 'Check <strong>Impact mode</strong>, click <strong>dns-primary</strong> - 3 services turn red. Click <strong>Timeline</strong> for startup order.',
         'operational': 'Classic web stack: web→api→db/cache→dns. Check <strong>Analysis</strong> - db and cache are bottlenecks (3 dependents each).',
-        'multi-region': 'Try <strong>Patterns</strong> tab - run ImpactQuery on dns-us (16 affected), or DependencyChain on web-eu (10 ancestors). Click "Show in Graph" to visualize.',
-        'kubernetes': 'K8s cluster with <strong>cost annotations</strong> ($1,370/mo) and <strong>live status</strong>. Click web-deployment (degraded status). Check <strong>History</strong> tab for changes.',
-        'terraform-aws': 'Imported from Terraform state. Notice cost breakdown ($332/mo). Check <strong>History</strong> tab - shows terraform apply events.',
-        'type-composition': 'Click <strong>multi-role</strong> - 2 types = 3 actions. Compare to <strong>caddy</strong> (1 type = 2 actions).',
-        'provider-demo': 'Click <strong>dns</strong> - see Proxmox commands with Docker alternative below. Same resource, different backend.',
-        '3-layer': 'Click <strong>Composition</strong> - see how Interface + Provider + Instance merge into one concrete command.',
-        'jsonld-export': 'Click any <strong>edge</strong> in the graph - see JSON-LD IRI resolution. Export to RDF-compatible tools.'
+        'incident-cascade': 'Cascading failure from core-switch. Click <strong>core-switch</strong> - 8 services affected. Check status errors in sidebar.',
+        'cicd-pipeline': 'Pipeline from git to production. Click <strong>build-stage</strong> - everything downstream blocked.',
+        'microservices-mesh': 'Service mesh with 12 services. Click <strong>api-gateway</strong> - 83% of mesh affected.',
+        'cab-datacenter': 'Proxmox cluster with replicas. Note <strong>dns-secondary</strong> replicates dns-primary. Check <strong>Analysis</strong> for SPOFs.',
+        'topdesk-import': 'CMDB data with CI naming. Click <strong>CI-SRV-001</strong> to see dependent services.',
+        'vmware-import': 'vSphere hierarchy. Click <strong>esxi-01</strong> to see VMs on that host.',
+        'multi-region': 'Try <strong>Patterns</strong> tab - run ImpactQuery on dns-us (16 affected), or DependencyChain on web-eu (10 ancestors).',
+        'kubernetes': 'K8s cluster with <strong>cost annotations</strong> ($1,370/mo) and <strong>live status</strong>. Click web-deployment (degraded status).',
+        'terraform-aws': 'Imported from Terraform state. Notice cost breakdown ($332/mo). Check <strong>History</strong> tab for changes.',
+        'provider-demo': 'Click <strong>dns</strong> - see Proxmox commands with Docker alternative below.',
+        '3-layer': 'Click <strong>Composition</strong> - see how Interface + Provider + Instance merge into one command.',
+        'jsonld-export': 'Click any <strong>edge</strong> in the graph - see JSON-LD IRI resolution.'
     };
 
     // Initialize visualization with loaded data
@@ -4977,9 +4982,9 @@ cue export ./adapters/topdesk/ -e jsonld --out json
                 <option value="cicd-pipeline">Pipeline Dependencies</option>
                 <option value="topdesk-import">CMDB Impact Analysis</option>
                 <option value="vmware-import">VMware Infrastructure</option>
-                <option value="cab-datacenter">Change Advisory Board</option>
-                <option value="kubernetes-cluster">Kubernetes Blast Radius</option>
-                <option value="terraform-state">Terraform Drift Detection</option>
+                <option value="cab-datacenter">Proxmox Datacenter</option>
+                <option value="kubernetes-cluster">Kubernetes</option>
+                <option value="terraform-state">Terraform AWS</option>
             </select>
             <button class="demo-start-btn" onclick="startDemoTour()">Start Demo</button>
             <div class="demo-skip" onclick="skipDemo()">or explore on your own</div>
@@ -5226,12 +5231,12 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         'topdesk-import': {
             title: 'TopDesk CMDB',
             example: 'topdesk-import',
-            target: 'erp-database',
+            target: 'CI-SRV-001',
             steps: [
-                { text: 'Database maintenance. What SLAs are affected?' },
-                { text: 'Data imported from TopDesk. Dependencies computed.', zoomTo: 'erp-database' },
-                { text: 'Click <strong>erp-database</strong>.', impact: 'erp-database' },
-                { text: 'Business services affected. SLAs in sidebar.' },
+                { text: 'Server maintenance. What services are affected?' },
+                { text: 'Data imported from TopDesk CMDB.', zoomTo: 'CI-SRV-001' },
+                { text: 'Click <strong>CI-SRV-001</strong>.', impact: 'CI-SRV-001' },
+                { text: 'Dependent services and applications.' },
                 { text: 'SPOF analysis.', showAnalysis: true },
                 { text: 'Done.' }
             ]
@@ -5239,50 +5244,50 @@ cue export ./adapters/topdesk/ -e jsonld --out json
         'vmware-import': {
             title: 'VMware vSphere',
             example: 'vmware-import',
-            target: 'esxi-host-01',
+            target: 'esxi-01',
             steps: [
                 { text: 'ESXi host needs patching. What VMs are on it?' },
-                { text: 'vSphere hierarchy: cluster, hosts, VMs, datastores.', zoomTo: 'esxi-host-01' },
-                { text: 'Click <strong>esxi-host-01</strong>.', impact: 'esxi-host-01' },
+                { text: 'vSphere hierarchy: vCenter, cluster, hosts, VMs.', zoomTo: 'esxi-01' },
+                { text: 'Click <strong>esxi-01</strong>.', impact: 'esxi-01' },
                 { text: 'VMs on this host.' },
                 { text: 'Full hierarchy in analysis.', showAnalysis: true },
                 { text: 'Done.' }
             ]
         },
         'cab-datacenter': {
-            title: 'CAB Review',
+            title: 'Datacenter',
             example: 'cab-datacenter',
-            target: 'hypervisor-01',
+            target: 'pve1',
             steps: [
-                { text: 'Hypervisor firmware update. What\'s at risk?' },
-                { text: 'Datacenter layout. Hypervisors host VMs.', zoomTo: 'hypervisor-01' },
-                { text: 'Click <strong>hypervisor-01</strong>.', impact: 'hypervisor-01' },
-                { text: 'Production VMs affected.' },
+                { text: 'Hypervisor maintenance. What VMs are affected?' },
+                { text: 'Proxmox cluster with VMs across two nodes.', zoomTo: 'pve1' },
+                { text: 'Click <strong>pve1</strong>.', impact: 'pve1' },
+                { text: 'VMs on this hypervisor.' },
                 { text: 'Impact summary.', showAnalysis: true },
                 { text: 'Done.' }
             ]
         },
         'kubernetes-cluster': {
             title: 'Kubernetes',
-            example: 'kubernetes-cluster',
-            target: 'postgres-db',
+            example: 'kubernetes',
+            target: 'postgres-primary',
             steps: [
                 { text: 'Database pod OOMKilled. What else fails?' },
-                { text: 'K8s cluster: namespaces, deployments, services.', zoomTo: 'postgres-db' },
-                { text: 'Click <strong>postgres-db</strong>.', impact: 'postgres-db' },
+                { text: 'K8s cluster: operators, deployments, services.', zoomTo: 'postgres-primary' },
+                { text: 'Click <strong>postgres-primary</strong>.', impact: 'postgres-primary' },
                 { text: 'Dependent services. Replica counts in sidebar.' },
                 { text: 'Cluster analysis.', showAnalysis: true },
                 { text: 'Done.' }
             ]
         },
         'terraform-state': {
-            title: 'Terraform State',
-            example: 'terraform-state',
-            target: 'vpc-main',
+            title: 'Terraform',
+            example: 'terraform-aws',
+            target: 'aws_vpc.main',
             steps: [
                 { text: 'Destroying VPC. What else gets deleted?' },
-                { text: 'Graph from Terraform state.', zoomTo: 'vpc-main' },
-                { text: 'Click <strong>vpc-main</strong>.', impact: 'vpc-main' },
+                { text: 'Graph from Terraform state.', zoomTo: 'aws_vpc.main' },
+                { text: 'Click <strong>aws_vpc.main</strong>.', impact: 'aws_vpc.main' },
                 { text: 'Everything in the VPC.' },
                 { text: 'Dependency chain.', showAnalysis: true },
                 { text: 'Done.' }
