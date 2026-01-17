@@ -217,8 +217,16 @@
     let currentData = null;
     let currentView = 'sankey';
 
+    // Convert types from struct-as-set {Type: true} to array ["Type"]
+    function getTypes(node) {
+        const t = node.types;
+        if (!t) return [];
+        if (Array.isArray(t)) return t;
+        return Object.keys(t);
+    }
+
     function getNodeColor(node) {
-        const types = node.types || [];
+        const types = getTypes(node);
         for (const t of types) {
             if (typeColors[t]) return typeColors[t];
         }
@@ -238,13 +246,13 @@
         document.getElementById('stat-edges').textContent = currentData.edges.length;
         document.getElementById('stat-depth').textContent = currentData.metrics?.maxDepth || Math.max(...currentData.nodes.map(n => n.depth));
         const types = new Set();
-        currentData.nodes.forEach(n => (n.types || []).forEach(t => types.add(t)));
+        currentData.nodes.forEach(n => getTypes(n).forEach(t => types.add(t)));
         document.getElementById('stat-types').textContent = types.size;
     }
 
     function updateLegend() {
         const types = new Set();
-        currentData.nodes.forEach(n => (n.types || []).forEach(t => types.add(t)));
+        currentData.nodes.forEach(n => getTypes(n).forEach(t => types.add(t)));
         const container = document.getElementById('legend-items');
         container.innerHTML = '';
         [...types].sort().forEach(type => {
@@ -350,7 +358,7 @@
             .attr('transform', `translate(${(width + 100) / 2}, ${(height + 100) / 2})`);
 
         // Build type-to-type matrix
-        const types = [...new Set(currentData.nodes.flatMap(n => n.types || []))].sort();
+        const types = [...new Set(currentData.nodes.flatMap(n => getTypes(n)))].sort();
         const typeIndex = new Map(types.map((t, i) => [t, i]));
         const matrix = Array(types.length).fill(null).map(() => Array(types.length).fill(0));
 
@@ -358,8 +366,8 @@
             const source = currentData.nodes.find(n => n.id === e.source);
             const target = currentData.nodes.find(n => n.id === e.target);
             if (source && target) {
-                (source.types || []).forEach(st => {
-                    (target.types || []).forEach(tt => {
+                getTypes(source).forEach(st => {
+                    getTypes(target).forEach(tt => {
                         const si = typeIndex.get(st);
                         const ti = typeIndex.get(tt);
                         if (si !== undefined && ti !== undefined) {
@@ -485,7 +493,7 @@
         // Group by type
         const byType = {};
         currentData.nodes.forEach(n => {
-            const type = (n.types || ['Unknown'])[0];
+            const type = getTypes(n)[0] || 'Unknown';
             if (!byType[type]) byType[type] = [];
             byType[type].push(n);
         });
@@ -624,7 +632,7 @@
         const tooltip = document.getElementById('tooltip');
         tooltip.innerHTML = `
             <h4>${d.id || d.name}</h4>
-            <p>Types: ${(d.types || []).join(', ') || '-'}</p>
+            <p>Types: ${getTypes(d).join(', ') || '-'}</p>
             <p>Depth: ${d.depth ?? '-'}</p>
             <p>Dependents: ${d.dependents ?? '-'}</p>
         `;
