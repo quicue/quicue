@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# quicue-viz-data - Generate vizData JSON from any quicue repo
+#
+# Tries in order:
+#   1. cue export -e vizData (if repo exports it directly)
+#   2. cue export -e _viz.data (internal pattern)
+#   3. Compute from infra.* expressions (universal fallback)
+#
+# Usage: quicue-viz-data [path]
+
+set -e
+
+PATH_ARG="${1:-.}"
+
+# Try direct vizData export first
+if DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null); then
+    echo "$DATA"
+    exit 0
+fi
+
+# Try internal _viz.data
+if DATA=$(cue export "$PATH_ARG" -e '_viz.data' --out json 2>/dev/null); then
+    echo "$DATA"
+    exit 0
+fi
+
+# Fallback: compute from infra.* expressions
+# This works with any repo that has infra: patterns.#InfraGraph
+
+# Get nodes from resources
+NODES=$(cue export "$PATH_ARG" -e 'infra.resources' --out json 2>/dev/null | jq '
+    [to_entries[] | {
+        id: .key,
+        name: .key,
+        types: (.value["@type"] // {} | keys),
+        depth: (.value._depth // 0),
+        ancestors: (.value._ancestors // []),
+        dependents: 0
+    }]
+' 2>/dev/null) || {
+    echo "Error: Could not extract resources from $PATH_ARG" >&2
+    echo "Ensure the path contains a CUE module with 'infra: patterns.#InfraGraph'" >&2
+    exit 1
+}
+
+# Get topology
+TOPOLOGY=$(cue export "$PATH_ARG" -e 'infra.topology' --out json 2>/dev/null | jq '
+    to_entries | map({(.key): (.value | keys)}) | add // {}
+' 2>/dev/null) || TOPOLOGY='{}'
+
+# Get roots and leaves
+ROOTS=$(cue export "$PATH_ARG" -e 'infra.roots' --out json 2>/dev/null) || ROOTS='[]'
+LEAVES=$(cue export "$PATH_ARG" -e 'infra.leaves' --out json 2>/dev/null) || LEAVES='[]'
+
+# Build edges from depends_on
+EDGES=$(cue export "$PATH_ARG" -e 'infra.resources' --out json 2>/dev/null | jq '
+    [to_entries[] |
+        .key as $target |
+        (.value.depends_on // {} | keys)[] as $source |
+        {source: $source, target: $target}
+    ]
+' 2>/dev/null) || EDGES='[]'
+
+# Compute dependents count per node
+NODES_WITH_DEPS=$(echo "$NODES" | jq --argjson edges "$EDGES" '
+    map(. as $node |
+        .dependents = ([$edges[] | select(.source == $node.name)] | length)
+    )
+')
+
+# Compute metrics
+TOTAL=$(echo "$NODES_WITH_DEPS" | jq 'length')
+MAX_DEPTH=$(echo "$NODES_WITH_DEPS" | jq '[.[].depth] | max // 0')
+EDGE_COUNT=$(echo "$EDGES" | jq 'length')
+ROOT_COUNT=$(echo "$ROOTS" | jq 'length')
+LEAF_COUNT=$(echo "$LEAVES" | jq 'length')
+
+# Assemble final vizData
+jq -n \
+    --argjson nodes "$NODES_WITH_DEPS" \
+    --argjson edges "$EDGES" \
+    --argjson topology "$TOPOLOGY" \
+    --argjson roots "$ROOTS" \
+    --argjson leaves "$LEAVES" \
+    --argjson total "$TOTAL" \
+    --argjson maxDepth "$MAX_DEPTH" \
+    --argjson edgeCount "$EDGE_COUNT" \
+    --argjson rootCount "$ROOT_COUNT" \
+    --argjson leafCount "$LEAF_COUNT" \
+    '{
+        nodes: $nodes,
+        edges: $edges,
+        topology: $topology,
+        roots: $roots,
+        leaves: $leaves,
+        metrics: {
+            total: $total,
+            maxDepth: $maxDepth,
+            edges: $edgeCount,
+            roots: $rootCount,
+            leaves: $leafCount
+        }
+    }'

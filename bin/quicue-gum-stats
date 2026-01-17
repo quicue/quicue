@@ -2,16 +2,14 @@
 # quicue-gum-stats - Pretty statistics card
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATH_ARG="${1:-.}"
 
-# Get data
-DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
-       cue export "$PATH_ARG" -e '_viz.data' --out json)
-
-if [ -z "$DATA" ] || [ "$DATA" = "null" ]; then
+# Get data using quicue-viz-data helper (handles all repo types)
+DATA=$("$SCRIPT_DIR/quicue-viz-data" "$PATH_ARG") || {
     echo "Error: Could not load infrastructure data from $PATH_ARG" >&2
     exit 1
-fi
+}
 
 TOTAL=$(echo "$DATA" | jq '.metrics.total // 0')
 MAX_DEPTH=$(echo "$DATA" | jq '.metrics.maxDepth // 0')

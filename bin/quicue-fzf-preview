@@ -4,15 +4,13 @@ set -e
 
 RESOURCE="$1"
 PATH_ARG="${QUICUE_PATH:-.}"
+SCRIPT_DIR="${QUICUE_SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
-# Get full resource data
-DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null || \
-       cue export "$PATH_ARG" -e '_viz.data' --out json)
-
-if [ -z "$DATA" ] || [ "$DATA" = "null" ]; then
+# Get data using quicue-viz-data helper (handles all repo types)
+DATA=$("$SCRIPT_DIR/quicue-viz-data" "$PATH_ARG" 2>/dev/null) || {
     echo "Error: Could not load infrastructure data from $PATH_ARG"
     exit 0
-fi
+}
 
 # Extract this resource
 RESOURCE_DATA=$(echo "$DATA" | jq --arg r "$RESOURCE" '.nodes[] | select(.name == $r)')
