@@ -4046,15 +4046,14 @@ ${paramLines}
     function renderD3Sunburst(container) {
         const width = Math.min(container.clientWidth, container.clientHeight) - D3_CONFIG.padding;
         const radius = width / 2;
+        const centerRadius = radius * 0.25; // Larger center area
 
         // Clear existing
         container.textContent = '';
 
-        // Create wrapper for breadcrumb
+        // Create wrapper
         const wrapper = document.createElement('div');
-        wrapper.style.position = 'relative';
-        wrapper.style.width = width + 'px';
-        wrapper.style.height = width + 'px';
+        wrapper.style.cssText = 'position:relative;width:' + width + 'px;height:' + width + 'px;margin:auto;';
         container.appendChild(wrapper);
 
         const svg = d3.select(wrapper).append('svg')
@@ -4066,20 +4065,19 @@ ${paramLines}
             .attr('transform', `translate(${width / 2}, ${width / 2})`);
 
         // Build hierarchy based on dependency relationships
-        // Root nodes are at the center, their dependents fan outward
         function buildDependencyTree() {
             const nodeMap = new Map(graphData.nodes.map(n => [n.id, { ...n, children: [] }]));
 
             // Build parent-child relationships (inverse of depends_on)
             graphData.edges.forEach(e => {
-                const parent = nodeMap.get(e.target);  // target is what's depended on
-                const child = nodeMap.get(e.source);   // source depends on target
+                const parent = nodeMap.get(e.target);
+                const child = nodeMap.get(e.source);
                 if (parent && child) {
                     parent.children.push(child);
                 }
             });
 
-            // Find root nodes (nodes with no dependencies - depth 0)
+            // Find root nodes (depth 0)
             const roots = graphData.nodes.filter(n => (n.depth || 0) === 0).map(n => nodeMap.get(n.id));
 
             return {
@@ -4101,36 +4099,52 @@ ${paramLines}
         const arc = d3.arc()
             .startAngle(d => d.x0)
             .endAngle(d => d.x1)
-            .innerRadius(d => d.y0)
+            .innerRadius(d => Math.max(centerRadius, d.y0))
             .outerRadius(d => d.y1 - 1);
 
-        // Store current view for transitions
         let currentFocus = root;
 
-        // Breadcrumb
-        const breadcrumb = document.createElement('div');
-        breadcrumb.className = 'd3-breadcrumb';
-        wrapper.appendChild(breadcrumb);
+        // Center group for label and click target
+        const centerGroup = g.append('g').attr('class', 'sunburst-center');
 
-        function updateBreadcrumb(node) {
-            breadcrumb.textContent = '';
-            const path = node.ancestors().reverse();
-            path.forEach((p, i) => {
-                const item = document.createElement('span');
-                item.className = 'd3-breadcrumb-item' + (i === path.length - 1 ? ' active' : '');
-                item.textContent = p.data.name || p.data.id || 'Root';
-                item.onclick = () => zoomTo(p);
-                breadcrumb.appendChild(item);
+        centerGroup.append('circle')
+            .attr('r', centerRadius)
+            .attr('fill', '#21262d')
+            .attr('stroke', '#30363d')
+            .attr('stroke-width', 2)
+            .attr('cursor', 'pointer')
+            .on('click', () => {
+                if (currentFocus.parent) zoomTo(currentFocus.parent);
             });
+
+        const centerLabel = centerGroup.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '-0.2em')
+            .attr('fill', '#c9d1d9')
+            .attr('font-size', '14px')
+            .attr('font-weight', 'bold')
+            .attr('pointer-events', 'none')
+            .text('Infrastructure');
+
+        const centerSubLabel = centerGroup.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '1.2em')
+            .attr('fill', '#8b949e')
+            .attr('font-size', '11px')
+            .attr('pointer-events', 'none')
+            .text('Click to zoom out');
+
+        function updateCenter(node) {
+            const name = node.data.name || node.data.id || 'Infrastructure';
+            centerLabel.text(name.length > 15 ? name.slice(0, 13) + '...' : name);
+            centerSubLabel.text(node.parent ? 'Click to zoom out' : (node.children ? node.children.length + ' roots' : ''));
         }
 
         function zoomTo(node) {
             currentFocus = node;
-            updateBreadcrumb(node);
+            updateCenter(node);
 
             const t = g.transition().duration(750);
-
-            // Compute new positions relative to clicked node
             const newRoot = node;
             const scale = 2 * Math.PI / (newRoot.x1 - newRoot.x0);
             const offsetX = -newRoot.x0;
@@ -4139,8 +4153,8 @@ ${paramLines}
                 .attrTween('d', d => {
                     const startAngle = d3.interpolate(d.x0Current || d.x0, (d.x0 + offsetX) * scale);
                     const endAngle = d3.interpolate(d.x1Current || d.x1, (d.x1 + offsetX) * scale);
-                    const innerR = d3.interpolate(d.y0Current || d.y0, Math.max(0, d.y0 - newRoot.y0));
-                    const outerR = d3.interpolate(d.y1Current || d.y1, Math.max(0, d.y1 - newRoot.y0));
+                    const innerR = d3.interpolate(d.y0Current || d.y0, Math.max(centerRadius, d.y0 - newRoot.y0));
+                    const outerR = d3.interpolate(d.y1Current || d.y1, Math.max(centerRadius, d.y1 - newRoot.y0));
                     return t => {
                         d.x0Current = startAngle(t);
                         d.x1Current = endAngle(t);
@@ -4154,74 +4168,76 @@ ${paramLines}
                     };
                 })
                 .style('opacity', d => {
-                    // Hide nodes not in current subtree
                     return d.ancestors().includes(newRoot) || newRoot.ancestors().includes(d) ? 1 : 0;
                 });
 
             labels.transition(t)
                 .style('opacity', d => {
                     const inView = d.ancestors().includes(newRoot) || newRoot.ancestors().includes(d);
-                    const bigEnough = (d.x1 - d.x0) * scale > 0.1;
+                    const bigEnough = (d.x1 - d.x0) * scale > 0.12;
                     return inView && bigEnough ? 1 : 0;
                 });
         }
 
-        const paths = g.selectAll('path')
+        const paths = g.selectAll('path.arc')
             .data(root.descendants().filter(d => d.depth))
             .join('path')
+            .attr('class', 'arc')
             .attr('d', arc)
             .attr('fill', d => {
                 if (d.data.types) return getD3NodeColor(d.data);
-                // For intermediate nodes, use first child's color
                 let current = d;
                 while (current.children && current.children.length > 0) {
                     current = current.children[0];
                 }
                 return current.data.types ? getD3NodeColor(current.data) : '#30363d';
             })
-            .attr('opacity', d => d.depth === 1 ? 0.5 : 0.85)
+            .attr('opacity', d => 0.7 + (d.depth * 0.1))
+            .attr('stroke', '#0d1117')
+            .attr('stroke-width', 0.5)
+            .attr('cursor', d => d.children && d.children.length > 0 ? 'pointer' : 'default')
             .on('click', (e, d) => {
                 if (d.children && d.children.length > 0) {
                     zoomTo(d);
                 }
             })
-            .on('mouseover', (e, d) => {
+            .on('mouseover', function(e, d) {
+                d3.select(this).attr('opacity', 1).attr('stroke-width', 2).attr('stroke', '#58a6ff');
                 if (d.data.id) showD3Tooltip(e, d.data);
             })
-            .on('mouseout', hideD3Tooltip);
+            .on('mouseout', function(e, d) {
+                d3.select(this).attr('opacity', 0.7 + (d.depth * 0.1)).attr('stroke-width', 0.5).attr('stroke', '#0d1117');
+                hideD3Tooltip();
+            });
 
-        // Store initial positions
         paths.each(function(d) {
             d.x0Current = d.x0;
             d.x1Current = d.x1;
-            d.y0Current = d.y0;
+            d.y0Current = Math.max(centerRadius, d.y0);
             d.y1Current = d.y1;
         });
 
-        const labels = g.selectAll('text')
-            .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.1))
+        const labels = g.selectAll('text.arc-label')
+            .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.12))
             .join('text')
+            .attr('class', 'arc-label')
             .attr('transform', d => {
                 const angle = (d.x0 + d.x1) / 2 * 180 / Math.PI;
-                const r = (d.y0 + d.y1) / 2;
+                const r = (Math.max(centerRadius, d.y0) + d.y1) / 2;
                 return `rotate(${angle - 90}) translate(${r}, 0) rotate(${angle > 180 ? 180 : 0})`;
             })
             .attr('dy', '0.35em')
             .attr('text-anchor', 'middle')
+            .attr('fill', '#fff')
+            .attr('font-size', '9px')
+            .attr('pointer-events', 'none')
             .text(d => {
                 const name = d.data.name || d.data.id || '';
-                return name.length > 10 ? name.slice(0, 8) + '...' : name;
+                const maxLen = Math.floor((d.x1 - d.x0) * 20);
+                return name.length > maxLen ? name.slice(0, maxLen - 2) + '..' : name;
             });
 
-        // Add center click to zoom out
-        g.append('circle')
-            .attr('r', root.y1 * 0.1)
-            .attr('fill', 'transparent')
-            .attr('cursor', 'pointer')
-            .on('click', () => zoomTo(root));
-
-        // Initial breadcrumb
-        updateBreadcrumb(root);
+        updateCenter(root);
     }
 
     // Window resize handler for D3 visualizations
