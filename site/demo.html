@@ -192,6 +192,36 @@
             color: #58a6ff;
             font-weight: bold;
         }
+        .cue-expr {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin: 0.75rem 0;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+        }
+        .cue-expr .keyword { color: #ff7b72; }
+        .cue-expr .field { color: #79c0ff; }
+        .cue-expr .string { color: #a5d6ff; }
+        .cue-result {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin: 0.75rem 0;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .cue-result-label {
+            font-size: 0.7rem;
+            color: #8b949e;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+        }
         .result-panel {
             background: #161b22;
             border: 1px solid #30363d;
@@ -243,88 +273,77 @@
     let cy = null;
     let currentStep = 0;
     let graphData = null;
-    let simulatedNode = null;
     let currentExample = 'incident-cascade';
     let interactionComplete = false;
 
-    // Streamlined 5-step demo
+    // Query-focused demo showing CUE patterns
     function generateSteps() {
         const nodeCount = graphData.nodes.length;
         const edgeCount = graphData.edges.length;
         const maxDepth = graphData.metrics?.maxDepth || Math.max(...graphData.nodes.map(n => n.depth));
 
-        // Find best target for impact demo (high dependents, not root)
+        // Find target for impact demo (high dependents, not root)
         const impactTarget = graphData.nodes
             .filter(n => n.dependents > 0 && n.depth > 0)
             .sort((a, b) => b.dependents - a.dependents)[0] || graphData.nodes[1];
 
-        const affectedNodes = graphData.nodes.filter(n =>
-            n.ancestors && n.ancestors.includes(impactTarget?.id)
-        );
+        // Find a leaf node for chain demo
+        const chainTarget = graphData.nodes
+            .filter(n => n.dependents === 0 && n.ancestors && n.ancestors.length > 1)
+            .sort((a, b) => b.ancestors.length - a.ancestors.length)[0] || graphData.leaves?.[0] || graphData.nodes[nodeCount - 1];
 
-        // Find SPOFs
-        const spofs = (graphData.spof || []).slice(0, 3);
-        const primarySpof = spofs[0] || impactTarget;
+        // Criticality ranking
+        const criticalityRanked = [...graphData.nodes].sort((a, b) => b.dependents - a.dependents);
 
-        // Coupling points
-        const coupling = graphData.coupling || graphData.nodes
-            .filter(n => n.dependents > nodeCount * 0.3)
-            .slice(0, 2);
+        // Topology layers
+        const topology = graphData.topology || {};
 
         return [
-        // Step 1: The Graph (combined intro)
+        // Step 1: Topology
         {
-            title: "Your Infrastructure",
-            content: '<p>This is your infrastructure as a <strong>dependency graph</strong>.</p>' +
-                '<div class="info-panel">' +
-                '<div class="info-row"><span class="info-label">Resources</span><span class="info-value">' + nodeCount + '</span></div>' +
-                '<div class="info-row"><span class="info-label">Dependencies</span><span class="info-value">' + edgeCount + '</span></div>' +
-                '<div class="info-row"><span class="info-label">Layers</span><span class="info-value">' + (maxDepth + 1) + '</span></div>' +
-                '</div>' +
-                '<p>Node color shows <strong>criticality</strong> - redder means more things depend on it.</p>' +
-                '<p>The problem: <em>what breaks if something fails?</em></p>',
+            title: "#InfraGraph.topology",
+            content: '<p>Resources grouped by dependency depth. Layer 0 has no dependencies.</p>' +
+                '<div class="cue-expr"><span class="field">infra</span>.topology</div>' +
+                '<div class="cue-result-label">Result</div>' +
+                '<div class="cue-result">' + JSON.stringify(topology, null, 2) + '</div>',
             action: function() {
                 resetGraph();
                 cy.fit(50);
             }
         },
 
-        // Step 2: Impact Analysis (interactive)
+        // Step 2: Impact Query
         {
-            title: "Impact Analysis",
-            content: '<p>Click <code>' + (impactTarget?.id || 'a node') + '</code> to see what breaks if it fails.</p>' +
-                '<div class="click-hint">Click the highlighted node in the graph</div>' +
+            title: "#ImpactQuery",
+            content: '<p>What fails if <code>' + impactTarget.id + '</code> goes down?</p>' +
+                '<div class="cue-expr"><span class="field">impact</span>: <span class="keyword">#ImpactQuery</span> & {<br>' +
+                '  <span class="field">Graph</span>: infra<br>' +
+                '  <span class="field">Target</span>: <span class="string">"' + impactTarget.id + '"</span><br>' +
+                '}</div>' +
+                '<div class="click-hint">Click the highlighted node to run query</div>' +
                 '<div id="impact-result"></div>',
             action: function() {
                 resetGraph();
                 interactionComplete = false;
                 updateNextButton();
 
-                // Highlight the target node
-                var target = cy.$id(impactTarget?.id);
+                var target = cy.$id(impactTarget.id);
                 if (target.length) {
                     target.addClass('pulse-hint');
                     cy.animate({ center: { eles: target }, zoom: 1.2, duration: 500 });
                 }
 
-                // Set up click handler
                 cy.once('tap', 'node', function(evt) {
                     var nodeId = evt.target.id();
                     showImpact(nodeId);
 
                     var affected = graphData.nodes.filter(function(n) {
                         return n.ancestors && n.ancestors.includes(nodeId);
-                    });
+                    }).map(function(n) { return n.id; });
 
-                    var resultEl = document.getElementById('impact-result');
-                    var affectedList = affected.slice(0, 4).map(function(n) { return n.id; }).join(', ');
-                    if (affected.length > 4) affectedList += '...';
-
-                    resultEl.innerHTML = '<div class="result-panel">' +
-                        '<h4>Blast Radius</h4>' +
-                        '<p><span class="critical">' + affected.length + ' service' + (affected.length !== 1 ? 's' : '') + '</span> would fail:</p>' +
-                        '<p style="font-size: 0.85rem; color: #8b949e;">' + affectedList + '</p>' +
-                        '</div>';
+                    document.getElementById('impact-result').innerHTML =
+                        '<div class="cue-result-label">impact.affected</div>' +
+                        '<div class="cue-result">' + JSON.stringify(affected, null, 2) + '</div>';
                     interactionComplete = true;
                     updateNextButton();
                 });
@@ -332,94 +351,81 @@
             requiresInteraction: true
         },
 
-        // Step 3: Risk Detection (SPOF + Coupling combined)
+        // Step 3: Dependency Chain
         {
-            title: "Risk Detection",
-            content: (function() {
-                var html = '<p>quicue automatically finds risks:</p>' +
-                    '<div class="info-panel">' +
-                    '<div class="info-row"><span class="info-label">Single Points of Failure</span><span class="badge spof">' + spofs.length + ' found</span></div>';
-                spofs.forEach(function(s) {
-                    html += '<div class="info-row"><span class="info-label" style="padding-left: 1rem;">' + (s.name || s.id) + '</span><span class="info-value">' + s.dependents + ' dependents</span></div>';
-                });
-                html += '</div>';
-                if (coupling.length > 0) {
-                    html += '<div class="info-panel">' +
-                        '<div class="info-row"><span class="info-label">Coupling Hotspots</span><span class="badge coupling">' + coupling.length + ' found</span></div>';
-                    coupling.forEach(function(c) {
-                        var pct = c.percentage || Math.round((c.dependents / (nodeCount - 1)) * 100);
-                        html += '<div class="info-row"><span class="info-label" style="padding-left: 1rem;">' + (c.name || c.id) + '</span><span class="info-value">' + pct + '% depend on this</span></div>';
-                    });
-                    html += '</div>';
-                }
-                html += '<p><strong>SPOF</strong> = no redundant peer at same layer.<br><strong>Coupling</strong> = too many things depend on one resource.</p>';
-                return html;
-            })(),
+            title: "#DependencyChain",
+            content: '<p>Path from <code>' + chainTarget.id + '</code> to roots.</p>' +
+                '<div class="cue-expr"><span class="field">chain</span>: <span class="keyword">#DependencyChain</span> & {<br>' +
+                '  <span class="field">Graph</span>: infra<br>' +
+                '  <span class="field">Target</span>: <span class="string">"' + chainTarget.id + '"</span><br>' +
+                '}</div>' +
+                '<div class="cue-result-label">chain.path</div>' +
+                '<div class="cue-result">' + JSON.stringify([chainTarget.id].concat(chainTarget.ancestors || []), null, 2) + '</div>',
             action: function() {
                 resetGraph();
-                spofs.forEach(function(s) {
-                    cy.$id(s.name || s.id).addClass('impact-source');
+                var targetNode = cy.$id(chainTarget.id);
+                var ancestorIds = chainTarget.ancestors || [];
+
+                targetNode.addClass('impact-source');
+                ancestorIds.forEach(function(id) {
+                    cy.$id(id).addClass('impact-highlight');
                 });
-                coupling.forEach(function(c) {
-                    var cId = c.name || c.id;
-                    if (!spofs.find(function(s) { return (s.name || s.id) === cId; })) {
-                        cy.$id(cId).addClass('impact-highlight');
+
+                // Highlight edges in the chain
+                cy.edges().forEach(function(e) {
+                    var srcInChain = ancestorIds.includes(e.source().id()) || e.source().id() === chainTarget.id;
+                    var tgtInChain = ancestorIds.includes(e.target().id()) || e.target().id() === chainTarget.id;
+                    if (srcInChain && tgtInChain) {
+                        e.addClass('impact-highlight');
+                    } else {
+                        e.addClass('dimmed');
+                    }
+                });
+
+                cy.nodes().forEach(function(n) {
+                    if (!ancestorIds.includes(n.id()) && n.id() !== chainTarget.id) {
+                        n.addClass('dimmed');
+                    }
+                });
+
+                cy.fit(50);
+            }
+        },
+
+        // Step 4: Criticality Rank
+        {
+            title: "#CriticalityRank",
+            content: '<p>Resources ordered by dependent count.</p>' +
+                '<div class="cue-expr"><span class="field">crit</span>: <span class="keyword">#CriticalityRank</span> & {<span class="field">Graph</span>: infra}</div>' +
+                '<div class="cue-result-label">crit.ranked</div>' +
+                '<div class="cue-result">' + JSON.stringify(criticalityRanked.slice(0, 6).map(function(n) {
+                    return { id: n.id, dependents: n.dependents };
+                }), null, 2) + '</div>',
+            action: function() {
+                resetGraph();
+                // Highlight top 3 most critical
+                criticalityRanked.slice(0, 3).forEach(function(n, i) {
+                    if (i === 0) {
+                        cy.$id(n.id).addClass('impact-source');
+                    } else {
+                        cy.$id(n.id).addClass('impact-highlight');
                     }
                 });
                 cy.fit(50);
             }
         },
 
-        // Step 4: Add Replica (one-click)
+        // Step 5: Full Explorer
         {
-            title: "Fix It",
-            content: (function() {
-                if (!primarySpof) return '<p>No SPOFs to fix in this example.</p>';
-                var spofId = primarySpof.name || primarySpof.id;
-                return '<p><code>' + spofId + '</code> is a single point of failure.</p>' +
-                    '<p>Add a replica to provide redundancy:</p>' +
-                    '<button class="btn action" id="btn-add-replica">Add ' + spofId + '-replica</button>' +
-                    '<div id="replica-result"></div>';
-            })(),
-            action: function() {
-                resetGraph();
-                if (!primarySpof) return;
-
-                var spofId = primarySpof.name || primarySpof.id;
-                cy.$id(spofId).addClass('impact-source');
-                cy.animate({ center: { eles: cy.$id(spofId) }, zoom: 1.3, duration: 500 });
-
-                setTimeout(function() {
-                    var btn = document.getElementById('btn-add-replica');
-                    if (btn) {
-                        btn.onclick = function() {
-                            addReplicaNode(spofId);
-                            btn.disabled = true;
-                            btn.textContent = 'Added!';
-
-                            document.getElementById('replica-result').innerHTML =
-                                '<div class="result-panel success">' +
-                                '<h4>SPOF Resolved</h4>' +
-                                '<p><code>' + spofId + '</code> now has a redundant peer.</p>' +
-                                '<p style="font-size: 0.85rem; color: #8b949e;">If the primary fails, the replica can take over.</p>' +
-                                '</div>';
-                        };
-                    }
-                }, 100);
-            }
-        },
-
-        // Step 5: Explore (CTA)
-        {
-            title: "Explore",
-            content: '<p>That\'s quicue: <strong>infrastructure as a queryable graph</strong>.</p>' +
+            title: "Explorer",
+            content: '<p>More queries in the full explorer:</p>' +
                 '<div class="info-panel">' +
-                '<div class="info-row"><span class="info-label">Impact analysis</span><span class="info-value">What breaks if X fails?</span></div>' +
-                '<div class="info-row"><span class="info-label">SPOF detection</span><span class="info-value">Find single points of failure</span></div>' +
-                '<div class="info-row"><span class="info-label">Deployment order</span><span class="info-value">Safe startup/shutdown sequence</span></div>' +
-                '<div class="info-row"><span class="info-label">What-if simulation</span><span class="info-value">Test changes before making them</span></div>' +
+                '<div class="info-row"><span class="info-label">#ImmediateDependents</span><span class="info-value">direct deps only</span></div>' +
+                '<div class="info-row"><span class="info-label">#GroupByType</span><span class="info-value">cluster by @type</span></div>' +
+                '<div class="info-row"><span class="info-label">#ValidateGraph</span><span class="info-value">find issues</span></div>' +
+                '<div class="info-row"><span class="info-label">#DeploymentOrder</span><span class="info-value">safe startup sequence</span></div>' +
                 '</div>' +
-                '<a href="index.html" class="btn action" style="display: block; text-align: center; text-decoration: none;">Open Full Explorer</a>',
+                '<a href="index.html" class="btn action" style="display: block; text-align: center; text-decoration: none;">Open Explorer</a>',
             action: function() {
                 resetGraph();
                 cy.fit(50);
@@ -431,73 +437,7 @@
     var demoSteps = [];
 
     function resetGraph() {
-        removeSimulatedNode();
         cy.elements().removeClass('highlighted dimmed impact-source impact-highlight pulse-hint');
-    }
-
-    function addReplicaNode(baseId) {
-        var baseNode = graphData.nodes.find(function(n) { return n.id === baseId; });
-        if (!baseNode || simulatedNode) return;
-
-        var replicaId = baseId + '-replica';
-
-        cy.add({
-            group: 'nodes',
-            data: {
-                id: replicaId,
-                dependents: 0,
-                depth: baseNode.depth,
-                simulated: true
-            },
-            classes: 'simulated-node'
-        });
-
-        graphData.edges.filter(function(e) { return e.target === baseId; }).forEach(function(e) {
-            cy.add({
-                group: 'edges',
-                data: {
-                    id: e.source + '-' + replicaId,
-                    source: e.source,
-                    target: replicaId,
-                    simulated: true
-                },
-                classes: 'simulated-edge'
-            });
-        });
-
-        var originalPos = cy.$id(baseId).position();
-        cy.$id(replicaId).position({
-            x: originalPos.x + 80,
-            y: originalPos.y + 60
-        });
-
-        cy.$id(replicaId).style({
-            'border-style': 'dashed',
-            'border-color': '#3fb950',
-            'border-width': 3,
-            'background-color': '#238636',
-            'label': replicaId
-        });
-
-        cy.edges('[simulated]').style({
-            'line-style': 'dashed',
-            'line-color': '#3fb950',
-            'target-arrow-color': '#3fb950'
-        });
-
-        cy.$id(baseId).removeClass('impact-source').addClass('impact-highlight');
-        cy.$id(replicaId).addClass('impact-highlight');
-
-        simulatedNode = replicaId;
-        cy.fit(50);
-    }
-
-    function removeSimulatedNode() {
-        if (simulatedNode) {
-            cy.$id(simulatedNode).remove();
-            cy.edges('[simulated]').remove();
-            simulatedNode = null;
-        }
     }
 
     async function loadGraph(example) {
@@ -506,7 +446,6 @@
         graphData = await resp.json();
         demoSteps = generateSteps();
         currentStep = 0;
-        simulatedNode = null;
         interactionComplete = false;
         initCytoscape();
         renderProgressDots();
@@ -548,11 +487,9 @@
                 { selector: 'node.impact-highlight', style: { 'border-color': '#3fb950', 'border-width': 3 } },
                 { selector: 'node.pulse-hint', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
                 { selector: 'node.dimmed', style: { 'opacity': 0.2 } },
-                { selector: 'node.simulated-node', style: { 'border-style': 'dashed', 'border-color': '#3fb950', 'border-width': 3, 'background-color': '#238636' } },
                 { selector: 'edge', style: { 'width': 2, 'line-color': '#30363d', 'target-arrow-color': '#30363d', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } },
                 { selector: 'edge.impact-highlight', style: { 'line-color': '#f85149', 'target-arrow-color': '#f85149', 'width': 3 } },
-                { selector: 'edge.dimmed', style: { 'opacity': 0.1 } },
-                { selector: 'edge.simulated-edge', style: { 'line-style': 'dashed', 'line-color': '#3fb950', 'target-arrow-color': '#3fb950' } }
+                { selector: 'edge.dimmed', style: { 'opacity': 0.1 } }
             ],
             layout: {
                 name: 'breadthfirst',
