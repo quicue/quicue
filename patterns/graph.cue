@@ -438,16 +438,15 @@ import "list"
 	// Coupling points: resources where >30% of graph depends on them
 	_totalNodes: len(_nodes)
 	_couplingThreshold: _totalNodes * 3 / 10 // 30%
-	_couplingList: [
+	_couplingRaw: [
 		for rname, deps in Graph.dependents {
 			let _count = len([for k, _ in deps {k}])
-			if _count >= _couplingThreshold {
-				name:       rname
-				dependents: _count
-				percentage: _count * 100 / _totalNodes
-			}
+			name:       rname
+			dependents: _count
+			percentage: _count * 100 / _totalNodes
 		},
 	]
+	_couplingList: [for c in _couplingRaw if c.dependents >= _couplingThreshold {c}]
 
 	// The output data structure (arrays for JavaScript compatibility)
 	data: {

@@ -2,19 +2,21 @@
     "nodes": [
         {
             "id": "pve-node",
-            "types": {
-                "VirtualizationPlatform": true
-            },
+            "name": "pve-node",
+            "types": [
+                "VirtualizationPlatform"
+            ],
             "depth": 0,
             "ancestors": [],
             "dependents": 4
         },
         {
             "id": "dns-primary",
-            "types": {
-                "DNSServer": true,
-                "CriticalInfra": true
-            },
+            "name": "dns-primary",
+            "types": [
+                "DNSServer",
+                "CriticalInfra"
+            ],
             "depth": 1,
             "ancestors": [
                 "pve-node"
@@ -23,9 +25,10 @@
         },
         {
             "id": "reverse-proxy",
-            "types": {
-                "ReverseProxy": true
-            },
+            "name": "reverse-proxy",
+            "types": [
+                "ReverseProxy"
+            ],
             "depth": 2,
             "ancestors": [
                 "dns-primary",
@@ -35,9 +38,10 @@
         },
         {
             "id": "git-server",
-            "types": {
-                "SourceControlManagement": true
-            },
+            "name": "git-server",
+            "types": [
+                "SourceControlManagement"
+            ],
             "depth": 3,
             "ancestors": [
                 "dns-primary",
@@ -48,9 +52,10 @@
         },
         {
             "id": "monitoring",
-            "types": {
-                "MonitoringServer": true
-            },
+            "name": "monitoring",
+            "types": [
+                "MonitoringServer"
+            ],
             "depth": 2,
             "ancestors": [
                 "dns-primary",

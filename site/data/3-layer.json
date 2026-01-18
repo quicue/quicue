@@ -2,10 +2,11 @@
     "nodes": [
         {
             "id": "dns-server",
-            "types": {
-                "DNSServer": true,
-                "LXCContainer": true
-            },
+            "name": "dns-server",
+            "types": [
+                "DNSServer",
+                "LXCContainer"
+            ],
             "depth": 1,
             "ancestors": [
                 "pve-node-1"
@@ -14,10 +15,11 @@
         },
         {
             "id": "git-server",
-            "types": {
-                "SourceControlManagement": true,
-                "LXCContainer": true
-            },
+            "name": "git-server",
+            "types": [
+                "SourceControlManagement",
+                "LXCContainer"
+            ],
             "depth": 2,
             "ancestors": [
                 "dns-server",
@@ -27,9 +29,10 @@
         },
         {
             "id": "pve-node-1",
-            "types": {
-                "VirtualizationPlatform": true
-            },
+            "name": "pve-node-1",
+            "types": [
+                "VirtualizationPlatform"
+            ],
             "depth": 0,
             "ancestors": [],
             "dependents": 2
