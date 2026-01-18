@@ -139,7 +139,7 @@ import "list"
 	}
 
 	// Computed: root nodes (no dependencies)
-	roots: [for rname, r in resources if r._depth == 0 {rname}]
+	roots: {for rname, r in resources if r._depth == 0 {(rname): true}}
 
 	// Computed: leaf nodes (nothing depends on them)
 	_hasDependents: {
@@ -147,13 +147,13 @@ import "list"
 			for d, _ in r.depends_on {(d): true}
 		}
 	}
-	leaves: [for rname, _ in resources if _hasDependents[rname] == _|_ {rname}]
+	leaves: {for rname, _ in resources if _hasDependents[rname] == _|_ {(rname): true}}
 
 	// Pre-computed dependents: inverse of _ancestors for O(1) impact lookups
 	// Instead of computing via pattern instantiation (O(n³)), pre-compute once (O(n²))
 	dependents: {
 		for t, _ in resources {
-			(t): [for n, r in resources if r._ancestors[t] != _|_ {n}]
+			(t): {for n, r in resources if r._ancestors[t] != _|_ {(n): true}}
 		}
 	}
 }
@@ -162,18 +162,18 @@ import "list"
 //
 // Usage:
 //   impact: #ImpactQuery & {Graph: infra, Target: "dns-primary"}
-//   // impact.affected = ["git-server", "web-app", ...]
+//   // impact.affected = {"git-server": true, "web-app": true, ...}
 //
 #ImpactQuery: {
 	Graph:  #InfraGraph
 	Target: string
 
-	affected: [
+	affected: {
 		for rname, r in Graph.resources
-		if r._ancestors[Target] != _|_ {rname},
-	]
+		if r._ancestors[Target] != _|_ {(rname): true}
+	}
 
-	affected_count: len(affected)
+	affected_count: len([for k, _ in affected {k}])
 }
 
 // #DependencyChain - Get full dependency chain for a resource
@@ -186,9 +186,9 @@ import "list"
 	Graph:  #InfraGraph
 	Target: string
 
-	path:  Graph.resources[Target]._path
-	depth: Graph.resources[Target]._depth
-	ancestors: [for a, _ in Graph.resources[Target]._ancestors {a}]
+	path:      Graph.resources[Target]._path
+	depth:     Graph.resources[Target]._depth
+	ancestors: Graph.resources[Target]._ancestors
 }
 
 // #GroupByType - Group resources by @type
@@ -201,7 +201,7 @@ import "list"
 	Graph: #InfraGraph
 
 	// Build groups using struct accumulation (avoids empty entries from nested for)
-	_byType: {
+	groups: {
 		for rname, r in Graph.resources {
 			for t, _ in r["@type"] {
 				(t): (rname): true
@@ -209,15 +209,9 @@ import "list"
 		}
 	}
 
-	groups: {
-		for typeName, members in _byType {
-			(typeName): [for m, _ in members {m}]
-		}
-	}
-
 	counts: {
 		for typeName, members in groups {
-			(typeName): len(members)
+			(typeName): len([for m, _ in members {m}])
 		}
 	}
 }
@@ -246,19 +240,19 @@ import "list"
 //
 // Usage:
 //   deps: #ImmediateDependents & {Graph: infra, Target: "dns"}
-//   // deps.dependents = ["proxy", "git"] (only direct, not transitive)
+//   // deps.dependents = {proxy: true, git: true} (only direct, not transitive)
 //
 #ImmediateDependents: {
 	Graph:  #InfraGraph
 	Target: string
 
-	dependents: [
+	dependents: {
 		for rname, r in Graph.resources
 		if r.depends_on != _|_
-		if r.depends_on[Target] != _|_ {rname},
-	]
+		if r.depends_on[Target] != _|_ {(rname): true}
+	}
 
-	count: len(dependents)
+	count: len([for k, _ in dependents {k}])
 }
 
 // #GraphMetrics - Summary statistics for the graph
@@ -402,18 +396,8 @@ import "list"
 		},
 	], 1)
 
-	// Pre-compute dependents map once (O(n²) total, not O(n³))
-	// Key optimization: struct field lookup is O(1), list.Contains is O(n)
-	_dependentsMap: {
-		for rname, _ in Graph.resources {
-			(rname): [
-				for other, r in Graph.resources
-				if r._ancestors[rname] != _|_ {other}
-			]
-		}
-	}
-
 	// Build nodes with computed properties
+	// Uses Graph.dependents (struct-as-set) for O(1) lookup
 	_nodes: [
 		for r in _export.resources {
 			id:         r.name
@@ -421,7 +405,7 @@ import "list"
 			types:      [for t, _ in r["@type"] {t}]
 			depth:      r.depth
 			ancestors:  r.ancestors
-			dependents: len(_dependentsMap[r.name])
+			dependents: len([for k, _ in Graph.dependents[r.name] {k}])
 		},
 	]
 
@@ -455,31 +439,33 @@ import "list"
 	_totalNodes: len(_nodes)
 	_couplingThreshold: _totalNodes * 3 / 10 // 30%
 	_couplingList: [
-		for rname, deps in _dependentsMap
-		if len(deps) >= _couplingThreshold {
-			name:       rname
-			dependents: len(deps)
-			percentage: len(deps) * 100 / _totalNodes
+		for rname, deps in Graph.dependents {
+			let _count = len([for k, _ in deps {k}])
+			if _count >= _couplingThreshold {
+				name:       rname
+				dependents: _count
+				percentage: _count * 100 / _totalNodes
+			}
 		},
 	]
 
-	// The output data structure
+	// The output data structure (arrays for JavaScript compatibility)
 	data: {
 		nodes:       _nodes
 		edges:       _edges
 		topology:    _topology
-		roots:       Graph.roots
-		leaves:      Graph.leaves
+		roots:       [for r, _ in Graph.roots {r}]
+		leaves:      [for l, _ in Graph.leaves {l}]
 		criticality: _critList
-		byType:      _byType.groups
+		byType: {for t, members in _byType.groups {(t): [for m, _ in members {m}]}}
 		spof:        _spofList
 		coupling:    _couplingList
 		metrics: {
 			total:    len(_nodes)
 			maxDepth: _export.summary.max_depth
 			edges:    len(_edges)
-			roots:    len(Graph.roots)
-			leaves:   len(Graph.leaves)
+			roots:    len([for r, _ in Graph.roots {r}])
+			leaves:   len([for l, _ in Graph.leaves {l}])
 			spofCount: len(_spofList)
 			couplingCount: len(_couplingList)
 		}
@@ -547,9 +533,9 @@ import "list"
 //
 // Usage:
 //   blast: #BlastRadius & {Graph: infra, Target: "dns"}
-//   // blast.affected = ["proxy", "web", "api"]
+//   // blast.affected = {proxy: true, web: true, api: true}
 //   // blast.rollback_order = ["web", "api", "proxy", "dns"]  // leaves first
-//   // blast.safe_peers = ["monitoring"]  // same layer, not affected
+//   // blast.safe_peers = {monitoring: true}  // same layer, not affected
 //
 #BlastRadius: {
 	Graph:  #InfraGraph
@@ -564,7 +550,7 @@ import "list"
 
 	// Rollback order: affected resources sorted by depth (deepest first), then target
 	_affectedWithDepth: [
-		for rname in affected {
+		for rname, _ in affected {
 			name:  rname
 			depth: Graph.resources[rname]._depth
 		},
@@ -577,16 +563,17 @@ import "list"
 
 	// Safe peers: resources at same layer that aren't affected
 	_layerKey: "layer_\(_targetDepth)"
-	_sameLayer: [for name, _ in Graph.topology[_layerKey] {name}]
-	_affectedSet: {for a in affected {(a): true}}
-	safe_peers: [for name in _sameLayer if name != Target && _affectedSet[name] == _|_ {name}]
+	safe_peers: {
+		for name, _ in Graph.topology[_layerKey]
+		if name != Target && affected[name] == _|_ {(name): true}
+	}
 
 	// Summary
 	summary: {
 		target:          Target
-		affected_count:  len(affected)
+		affected_count:  len([for k, _ in affected {k}])
 		rollback_steps:  len(rollback_order)
-		safe_peer_count: len(safe_peers)
+		safe_peer_count: len([for k, _ in safe_peers {k}])
 	}
 }
 
@@ -704,7 +691,7 @@ import "list"
 		let _depth = _r._depth
 		let _hasPeer = len([
 			for t, _ in _types
-			for peer in _byType.groups[t]
+			for peer, _ in _byType.groups[t]
 			if peer != c.name && Graph.resources[peer]._depth == _depth {peer},
 		]) > 0
 		if !_hasPeer {

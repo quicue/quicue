@@ -12,6 +12,17 @@ set -e
 
 PATH_ARG="${1:-.}"
 
+# Early validation
+if [[ ! -d "$PATH_ARG" ]]; then
+    echo "Error: '$PATH_ARG' is not a directory" >&2
+    exit 1
+fi
+
+if ! cue vet "$PATH_ARG" 2>/dev/null; then
+    echo "Error: '$PATH_ARG' contains invalid CUE" >&2
+    exit 1
+fi
+
 # Try direct vizData export first
 if DATA=$(cue export "$PATH_ARG" -e 'vizData' --out json 2>/dev/null); then
     echo "$DATA"
@@ -28,13 +39,14 @@ fi
 # This works with any repo that has infra: patterns.#InfraGraph
 
 # Get nodes from resources
+# Note: _ancestors is struct-as-set {name: true}, convert to array
 NODES=$(cue export "$PATH_ARG" -e 'infra.resources' --out json 2>/dev/null | jq '
     [to_entries[] | {
         id: .key,
         name: .key,
         types: (.value["@type"] // {} | keys),
         depth: (.value._depth // 0),
-        ancestors: (.value._ancestors // []),
+        ancestors: (.value._ancestors // {} | keys),
         dependents: 0
     }]
 ' 2>/dev/null) || {
@@ -43,14 +55,14 @@ NODES=$(cue export "$PATH_ARG" -e 'infra.resources' --out json 2>/dev/null | jq 
     exit 1
 }
 
-# Get topology
+# Get topology (values are struct-as-set, convert to arrays)
 TOPOLOGY=$(cue export "$PATH_ARG" -e 'infra.topology' --out json 2>/dev/null | jq '
     to_entries | map({(.key): (.value | keys)}) | add // {}
 ' 2>/dev/null) || TOPOLOGY='{}'
 
-# Get roots and leaves
-ROOTS=$(cue export "$PATH_ARG" -e 'infra.roots' --out json 2>/dev/null) || ROOTS='[]'
-LEAVES=$(cue export "$PATH_ARG" -e 'infra.leaves' --out json 2>/dev/null) || LEAVES='[]'
+# Get roots and leaves (struct-as-set, convert to arrays)
+ROOTS=$(cue export "$PATH_ARG" -e 'infra.roots' --out json 2>/dev/null | jq 'keys') || ROOTS='[]'
+LEAVES=$(cue export "$PATH_ARG" -e 'infra.leaves' --out json 2>/dev/null | jq 'keys') || LEAVES='[]'
 
 # Build edges from depends_on
 EDGES=$(cue export "$PATH_ARG" -e 'infra.resources' --out json 2>/dev/null | jq '

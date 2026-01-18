@@ -19,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Colors
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 DIM='\033[2m'
@@ -37,6 +38,55 @@ run_cue() {
         echo -e "${DIM}> cue $*${NC}" >&2
     fi
     cue "$@"
+}
+
+# Validation helpers - cache inventory once
+_INVENTORY=""
+get_inventory() {
+    if [[ -z "$_INVENTORY" ]]; then
+        _INVENTORY=$(cue export ./reference/inventory.cue -e output --out json 2>/dev/null) || {
+            echo -e "${RED}Error: Could not load inventory${NC}" >&2
+            exit 1
+        }
+    fi
+    echo "$_INVENTORY"
+}
+
+validate_resource() {
+    local resource="$1"
+    if ! get_inventory | jq -e --arg r "$resource" '.[$r]' >/dev/null 2>&1; then
+        echo -e "${RED}Error: resource '$resource' not found${NC}" >&2
+        echo "Available resources:" >&2
+        get_inventory | jq -r 'keys[]' | sed 's/^/  /' >&2
+        exit 1
+    fi
+}
+
+validate_type() {
+    local type="$1"
+    local types=$(cue export ./reference/inventory.cue -e by_type --out json 2>/dev/null | jq -r 'keys[]')
+    if ! echo "$types" | grep -qx "$type"; then
+        echo -e "${RED}Error: type '$type' not found${NC}" >&2
+        echo "Available types:" >&2
+        echo "$types" | sed 's/^/  /' >&2
+        exit 1
+    fi
+}
+
+validate_action() {
+    local resource="$1"
+    local action="$2"
+    local actions=$(get_inventory | jq -r --arg r "$resource" '.[$r].actions // {} | keys[]')
+    if ! echo "$actions" | grep -qx "$action"; then
+        echo -e "${RED}Error: action '$action' not found for resource '$resource'${NC}" >&2
+        if [[ -n "$actions" ]]; then
+            echo "Available actions:" >&2
+            echo "$actions" | sed 's/^/  /' >&2
+        else
+            echo "Resource '$resource' has no actions defined" >&2
+        fi
+        exit 1
+    fi
 }
 
 case "${1:-}" in
@@ -79,6 +129,7 @@ case "${1:-}" in
             echo "Usage: quicue actions <resource>"
             exit 1
         fi
+        validate_resource "$2"
         run_cue cmd -t resource="$2" actions ./reference/...
         ;;
 
@@ -88,6 +139,7 @@ case "${1:-}" in
             run_cue export ./reference/inventory.cue -e by_type --out json | jq -r 'keys[]'
         else
             # List resources of specific type
+            validate_type "$2"
             run_cue export ./reference/inventory.cue -e "by_type.$2" --out json
         fi
         ;;
@@ -108,11 +160,14 @@ case "${1:-}" in
         RESOURCE=$1
         ACTION=${2:-}
 
+        validate_resource "$RESOURCE"
+
         if [[ -z "$ACTION" ]]; then
             # Show resource details
             run_cue cmd -t resource="$RESOURCE" show ./reference/...
         else
             # Execute or dry-run action
+            validate_action "$RESOURCE" "$ACTION"
             if [[ "${3:-}" == "dry" ]]; then
                 run_cue cmd -t resource="$RESOURCE" -t action="$ACTION" dry ./reference/...
             else

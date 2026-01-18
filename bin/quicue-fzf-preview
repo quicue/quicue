@@ -20,8 +20,12 @@ if [ -z "$RESOURCE_DATA" ] || [ "$RESOURCE_DATA" = "null" ]; then
     exit 0
 fi
 
-# Pretty print with bat for colors
-echo "$RESOURCE_DATA" | jq '.' | bat --style=plain --language=json --color=always
+# Pretty print with bat if available, fallback to jq color output
+if command -v bat &>/dev/null; then
+    echo "$RESOURCE_DATA" | jq '.' | bat --style=plain --language=json --color=always
+else
+    echo "$RESOURCE_DATA" | jq -C '.'
+fi
 
 echo ""
 echo "─────────────────────────────"

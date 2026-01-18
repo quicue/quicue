@@ -4,9 +4,21 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check for gum
-if ! command -v gum &> /dev/null; then
-    echo "gum is required: brew install gum"
+# Check for gum with OS-appropriate install instructions
+if ! command -v gum &>/dev/null; then
+    echo "gum is required for pretty terminal output" >&2
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "  brew install gum" >&2
+    elif [[ -f /etc/debian_version ]]; then
+        echo "  sudo mkdir -p /etc/apt/keyrings" >&2
+        echo "  curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg" >&2
+        echo "  echo \"deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *\" | sudo tee /etc/apt/sources.list.d/charm.list" >&2
+        echo "  sudo apt update && sudo apt install gum" >&2
+    elif [[ -f /etc/arch-release ]]; then
+        echo "  pacman -S gum" >&2
+    else
+        echo "  See: https://github.com/charmbracelet/gum#installation" >&2
+    fi
     exit 1
 fi
 
