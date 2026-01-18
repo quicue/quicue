@@ -105,18 +105,6 @@ module: "mycompany.com/infra"
 language: version: "v0.15.3"
 ```
 
-For local development with sibling repos, use `quicue-link`:
-
-```bash
-# Link all quicue ecosystem repos
-./bin/quicue-link all
-
-# Or interactively select
-./bin/quicue-link
-```
-
-See [docs/quicue-link.md](docs/quicue-link.md) for full documentation.
-
 ### 4. Define Your Infrastructure
 
 ```cue
@@ -149,17 +137,12 @@ git clone https://github.com/quicue/quicue.git && cd quicue
 
 ## Terminal Visualization
 
-See [docs/terminal-tools.md](docs/terminal-tools.md) for full documentation.
-
 ```bash
 # Pretty statistics
 ./bin/quicue-gum stats ./examples/graph-patterns
 
 # Fuzzy finder with preview
 ./bin/quicue-fzf ./examples/graph-patterns
-
-# Interactive TUI
-quicue-tui ./examples/graph-patterns
 ```
 
 ## Structure
@@ -219,13 +202,6 @@ From `quicue.ca/patterns@v0`:
 ./bin/quicue list             # List examples
 ./bin/quicue context          # JSON-LD @context
 ./bin/quicue mermaid          # Mermaid diagram
-
-# Package Management
-./bin/quicue-link             # Interactive repo linking
-./bin/quicue-link all         # Link all sibling repos
-./bin/quicue-link list        # Show current links
-./bin/quicue-link available   # Show available repos
-./bin/quicue-link unlink      # Remove all links
 ```
 
 ## Use in Your Project

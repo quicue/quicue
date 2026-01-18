@@ -9,7 +9,7 @@ EXCLUDE_PATTERNS=("CLAUDE.md" ".claude" ".cursorrules" ".cursor")
 CONTAMINATION_PATTERNS=("\\bclaude\\b" "\\banthropic\\b" "\\bmcp\\b" "\\bllm\\b" "\\bcopilot\\b" "\\bgpt\\b" "\\bopenai\\b")
 
 REPOS_DIR="${1:-$(dirname "$(pwd)")}"
-INTERNAL_REMOTE_PATTERN="infra.grdn"
+INTERNAL_REMOTE_PATTERN="internal.example.com"
 PUBLIC_REMOTE="gitlab-pub"
 
 RED='\033[0;31m'

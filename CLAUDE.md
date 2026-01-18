@@ -96,8 +96,8 @@ LIBRARY LAYER (quicue ecosystem) - Generic, reusable patterns
 └── ...
 
 INSTANCE LAYER (consumers) - Specific deployments
-├── jrdn                → One team's cluster (mthdn homelab)
-├── rfam                → Another tenant
+├── team-alpha          → One team's infrastructure
+├── team-beta           → Another team's deployment
 └── [other clusters]    → Other teams using quicue
 ```
 
