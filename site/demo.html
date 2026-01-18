@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>quicue - Quick Demo</title>
+    <link rel="stylesheet" href="shared.css">
     <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <script src="shared.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -252,12 +254,12 @@
         <h1>quicue <span>/ demo</span></h1>
         <div class="progress-dots" id="progress-dots"></div>
         <select id="example-select">
-            <option value="graph-patterns">Patterns (5 nodes)</option>
-            <option value="operational">Web Stack (8 nodes)</option>
             <option value="incident-cascade">Incident Cascade (9 nodes)</option>
+            <option value="operational">Web Stack (8 nodes)</option>
             <option value="cicd-pipeline">CI/CD Pipeline (9 nodes)</option>
             <option value="microservices-mesh">Microservices (12 nodes)</option>
             <option value="multi-region">Multi-Region (22 nodes)</option>
+            <option value="graph-patterns">Minimal (5 nodes)</option>
         </select>
         <a href="index.html" class="skip-link">Skip to Explorer</a>
     </div>
@@ -276,7 +278,7 @@
     let cy = null;
     let currentStep = 0;
     let graphData = null;
-    let currentExample = 'graph-patterns';
+    let currentExample = 'incident-cascade';
     let interactionComplete = false;
 
     // Query-focused demo showing CUE patterns
@@ -301,11 +303,42 @@
         // Topology layers
         const topology = graphData.topology || {};
 
+        // Group by type
+        const byType = graphData.byType || {};
+
+        // Find nodes for immediate dependents demo
+        const immediateTarget = graphData.nodes.find(n => n.dependents > 1) || impactTarget;
+        const immediateDeps = graphData.nodes.filter(n => {
+            const deps = n.depends_on || (n.ancestors && n.ancestors.length === 1 ? n.ancestors : []);
+            return deps && deps.includes && deps.includes(immediateTarget.id);
+        }).map(n => n.id);
+
+        // Find two nodes for path demo
+        const pathFrom = graphData.roots && graphData.roots[0] || graphData.nodes[0].id;
+        const pathTo = graphData.leaves && graphData.leaves[0] || graphData.nodes[graphData.nodes.length - 1].id;
+
         return [
-        // Step 1: Topology
+        // Step 1: Welcome
+        {
+            title: "quicue",
+            content: '<p><strong>Infrastructure as queryable graphs.</strong></p>' +
+                '<p>Dependencies become traversable edges. Run queries to analyze impact, find paths, and validate your infrastructure.</p>' +
+                '<div class="info-panel">' +
+                '<div class="info-row"><span class="info-label">Nodes</span><span class="info-value">' + nodeCount + '</span></div>' +
+                '<div class="info-row"><span class="info-label">Edges</span><span class="info-value">' + edgeCount + '</span></div>' +
+                '<div class="info-row"><span class="info-label">Max Depth</span><span class="info-value">' + maxDepth + '</span></div>' +
+                '</div>' +
+                '<p style="font-size: 0.85rem; color: #8b949e;">Use arrow keys or click Next to continue.</p>',
+            action: function() {
+                resetGraph();
+                cy.fit(50);
+            }
+        },
+
+        // Step 2: Topology
         {
             title: "#InfraGraph.topology",
-            content: '<p>Resources grouped by dependency depth. Layer 0 has no dependencies.</p>' +
+            content: '<p>Resources grouped by dependency depth. Layer 0 has no dependencies (roots).</p>' +
                 '<div class="cue-expr"><span class="field">infra</span>.topology</div>' +
                 '<div class="cue-result-label">Result</div>' +
                 '<div class="cue-result">' + JSON.stringify(topology, null, 2) + '</div>',
@@ -315,10 +348,10 @@
             }
         },
 
-        // Step 2: Impact Query
+        // Step 3: Impact Query
         {
             title: "#ImpactQuery",
-            content: '<p>What fails if <code>' + impactTarget.id + '</code> goes down?</p>' +
+            content: '<p>What fails if <code>' + impactTarget.id + '</code> goes down? (Blast radius)</p>' +
                 '<div class="cue-expr"><span class="field">impact</span>: <span class="keyword">#ImpactQuery</span> & {<br>' +
                 '  <span class="field">Graph</span>: infra<br>' +
                 '  <span class="field">Target</span>: <span class="string">"' + impactTarget.id + '"</span><br>' +
@@ -354,10 +387,10 @@
             requiresInteraction: true
         },
 
-        // Step 3: Dependency Chain
+        // Step 4: Dependency Chain
         {
             title: "#DependencyChain",
-            content: '<p>Path from <code>' + chainTarget.id + '</code> to roots.</p>' +
+            content: '<p>Path from <code>' + chainTarget.id + '</code> up to roots.</p>' +
                 '<div class="cue-expr"><span class="field">chain</span>: <span class="keyword">#DependencyChain</span> & {<br>' +
                 '  <span class="field">Graph</span>: infra<br>' +
                 '  <span class="field">Target</span>: <span class="string">"' + chainTarget.id + '"</span><br>' +
@@ -374,7 +407,6 @@
                     cy.$id(id).addClass('impact-highlight');
                 });
 
-                // Highlight edges in the chain
                 cy.edges().forEach(function(e) {
                     var srcInChain = ancestorIds.includes(e.source().id()) || e.source().id() === chainTarget.id;
                     var tgtInChain = ancestorIds.includes(e.target().id()) || e.target().id() === chainTarget.id;
@@ -395,10 +427,37 @@
             }
         },
 
-        // Step 4: Criticality Rank
+        // Step 5: Immediate Dependents
+        {
+            title: "#ImmediateDependents",
+            content: '<p>Direct dependents only (not transitive) for <code>' + immediateTarget.id + '</code>.</p>' +
+                '<div class="cue-expr"><span class="field">deps</span>: <span class="keyword">#ImmediateDependents</span> & {<br>' +
+                '  <span class="field">Graph</span>: infra<br>' +
+                '  <span class="field">Target</span>: <span class="string">"' + immediateTarget.id + '"</span><br>' +
+                '}</div>' +
+                '<div class="cue-result-label">deps.dependents</div>' +
+                '<div class="cue-result">' + JSON.stringify(immediateDeps.length > 0 ? immediateDeps : ['(none - try a different example)'], null, 2) + '</div>' +
+                '<p style="font-size: 0.85rem; color: #8b949e; margin-top: 0.5rem;">Unlike #ImpactQuery, this only shows <em>direct</em> dependents.</p>',
+            action: function() {
+                resetGraph();
+                var target = cy.$id(immediateTarget.id);
+                target.addClass('impact-source');
+                immediateDeps.forEach(function(id) {
+                    cy.$id(id).addClass('impact-highlight');
+                });
+                cy.nodes().forEach(function(n) {
+                    if (n.id() !== immediateTarget.id && !immediateDeps.includes(n.id())) {
+                        n.addClass('dimmed');
+                    }
+                });
+                cy.fit(50);
+            }
+        },
+
+        // Step 6: Criticality Rank
         {
             title: "#CriticalityRank",
-            content: '<p>Resources ordered by dependent count.</p>' +
+            content: '<p>Resources ordered by dependent count (most critical first).</p>' +
                 '<div class="cue-expr"><span class="field">crit</span>: <span class="keyword">#CriticalityRank</span> & {<span class="field">Graph</span>: infra}</div>' +
                 '<div class="cue-result-label">crit.ranked</div>' +
                 '<div class="cue-result">' + JSON.stringify(criticalityRanked.slice(0, 6).map(function(n) {
@@ -406,7 +465,6 @@
                 }), null, 2) + '</div>',
             action: function() {
                 resetGraph();
-                // Highlight top 3 most critical
                 criticalityRanked.slice(0, 3).forEach(function(n, i) {
                     if (i === 0) {
                         cy.$id(n.id).addClass('impact-source');
@@ -418,16 +476,66 @@
             }
         },
 
-        // Step 5: Full Explorer
+        // Step 7: Group By Type
+        {
+            title: "#GroupByType",
+            content: '<p>Resources grouped by their @type values.</p>' +
+                '<div class="cue-expr"><span class="field">byType</span>: <span class="keyword">#GroupByType</span> & {<span class="field">Graph</span>: infra}</div>' +
+                '<div class="cue-result-label">byType.groups</div>' +
+                '<div class="cue-result">' + JSON.stringify(Object.keys(byType).length > 0 ? byType : {note: 'Run with multi-region example'}, null, 2) + '</div>',
+            action: function() {
+                resetGraph();
+                cy.fit(50);
+            }
+        },
+
+        // Step 8: Validate Graph
+        {
+            title: "#ValidateGraph",
+            content: '<p>Check for common issues: missing deps, self-refs, cycles.</p>' +
+                '<div class="cue-expr"><span class="field">validate</span>: <span class="keyword">#ValidateGraph</span> & {<span class="field">Input</span>: resources}</div>' +
+                '<div class="info-panel">' +
+                '<div class="info-row"><span class="info-label">Missing deps</span><span class="info-value">refs to non-existent nodes</span></div>' +
+                '<div class="info-row"><span class="info-label">Self refs</span><span class="info-value">nodes depending on themselves</span></div>' +
+                '<div class="info-row"><span class="info-label">Empty types</span><span class="info-value">nodes without @type</span></div>' +
+                '</div>',
+            action: function() {
+                resetGraph();
+                cy.fit(50);
+            }
+        },
+
+        // Step 9: D3 Visualizations
+        {
+            title: "D3 Visualizations",
+            content: '<p>8 different ways to visualize your graph:</p>' +
+                '<div class="info-panel">' +
+                '<div class="info-row"><span class="info-label">Sankey</span><span class="info-value">dependency flow</span></div>' +
+                '<div class="info-row"><span class="info-label">Chord</span><span class="info-value">type relationships</span></div>' +
+                '<div class="info-row"><span class="info-label">Matrix</span><span class="info-value">adjacency grid</span></div>' +
+                '<div class="info-row"><span class="info-label">Treemap</span><span class="info-value">grouped by type</span></div>' +
+                '<div class="info-row"><span class="info-label">Sunburst</span><span class="info-value">depth hierarchy</span></div>' +
+                '<div class="info-row"><span class="info-label">Force</span><span class="info-value">draggable layout</span></div>' +
+                '<div class="info-row"><span class="info-label">Bundle</span><span class="info-value">edge bundling</span></div>' +
+                '<div class="info-row"><span class="info-label">Gantt</span><span class="info-value">deployment order</span></div>' +
+                '</div>',
+            action: function() {
+                resetGraph();
+                cy.fit(50);
+            }
+        },
+
+        // Step 10: Full Explorer
         {
             title: "Explorer",
-            content: '<p>More queries in the full explorer:</p>' +
+            content: '<p>The full explorer also includes:</p>' +
                 '<div class="info-panel">' +
-                '<div class="info-row"><span class="info-label">#ImmediateDependents</span><span class="info-value">direct deps only</span></div>' +
-                '<div class="info-row"><span class="info-label">#GroupByType</span><span class="info-value">cluster by @type</span></div>' +
-                '<div class="info-row"><span class="info-label">#ValidateGraph</span><span class="info-value">find issues</span></div>' +
-                '<div class="info-row"><span class="info-label">#DeploymentOrder</span><span class="info-value">safe startup sequence</span></div>' +
+                '<div class="info-row"><span class="info-label">#PathFinder</span><span class="info-value">shortest path between nodes</span></div>' +
+                '<div class="info-row"><span class="info-label">Graph Diff</span><span class="info-value">compare two states</span></div>' +
+                '<div class="info-row"><span class="info-label">Export</span><span class="info-value">DOT, Mermaid, PlantUML</span></div>' +
+                '<div class="info-row"><span class="info-label">Import</span><span class="info-value">Terraform, Pulumi, Proxmox</span></div>' +
                 '</div>' +
+                '<p style="font-size: 0.85rem; color: #8b949e; margin-top: 1rem;">Press <code>?</code> for keyboard shortcuts</p>' +
                 '<a href="index.html" class="btn action" style="display: block; text-align: center; text-decoration: none;">Open Explorer</a>',
             action: function() {
                 resetGraph();
@@ -503,21 +611,7 @@
         });
     }
 
-    function criticalityColor(deps, max) {
-        if (max === 0) return '#58a6ff';
-        var ratio = deps / max;
-        if (ratio < 0.5) {
-            var r = Math.round(88 + (240 - 88) * (ratio * 2));
-            var g = Math.round(166 + (136 - 166) * (ratio * 2));
-            var b = Math.round(255 + (62 - 255) * (ratio * 2));
-            return 'rgb(' + r + ',' + g + ',' + b + ')';
-        } else {
-            var r = Math.round(240 + (248 - 240) * ((ratio - 0.5) * 2));
-            var g = Math.round(136 - 136 * ((ratio - 0.5) * 2));
-            var b = Math.round(62 - 62 * ((ratio - 0.5) * 2));
-            return 'rgb(' + r + ',' + g + ',' + b + ')';
-        }
-    }
+    // criticalityColor imported from shared.js
 
     function showImpact(targetId) {
         cy.elements().removeClass('impact-source impact-highlight dimmed pulse-hint');
@@ -582,7 +676,9 @@
 
     function updateStep() {
         var step = demoSteps[currentStep];
-        document.getElementById('narration').innerHTML = '<h2>' + step.title + '</h2>' + step.content;
+        var stepCounter = '<div style="font-size: 0.75rem; color: #8b949e; margin-bottom: 0.5rem;">Step ' + (currentStep + 1) + ' of ' + demoSteps.length + '</div>';
+        // Note: innerHTML used with trusted static content only (no user input)
+        document.getElementById('narration').innerHTML = stepCounter + '<h2>' + step.title + '</h2>' + step.content;
         document.getElementById('btn-prev').disabled = currentStep === 0;
         updateProgressDots();
         updateNextButton();

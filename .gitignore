@@ -9,7 +9,7 @@
 .dev/
 task_plan.md
 notes.md
-quicue-cab/
+.claude/
 
 # CI local testing
 .gitlab-ci-local/
@@ -22,6 +22,32 @@ tmp/
 # Generated data exports
 docs/data/
 
-# Symlinks to sibling repos
+# Site development notes
+site/.viz-notes.md
+
+# Symlinks to sibling ecosystem repos (quicue-*)
 adapters
-.claude/
+boot
+ckan
+dagger
+docker
+doggo
+icitte
+incus
+infra
+k3d
+ml
+moi
+nu
+orche
+pkg
+proxmox
+semantic
+struct
+wiki
+
+# Symlinks to doc repos
+docs/quicue-docs
+
+# Submodules (published separately)
+quicue-cab/

@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>quicue - Infrastructure Graph Explorer</title>
+    <link rel="stylesheet" href="shared.css">
     <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <script src="shared.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -301,6 +303,27 @@
             color: #c9d1d9;
         }
         .api-btn.secondary:hover { background: #30363d; }
+        /* Filter controls */
+        .filter-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #8b949e;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        .filter-btn:hover { background: #30363d; color: #c9d1d9; }
+        .filter-btn.active { background: #1f6feb; border-color: #1f6feb; color: white; }
+        .filter-select, .filter-input {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .filter-select:focus, .filter-input:focus { border-color: #58a6ff; outline: none; }
         .api-result {
             margin-top: 0.75rem;
         }
@@ -912,6 +935,36 @@
             color: #c9d1d9;
         }
         .add-form-btn.secondary:hover { background: #30363d; }
+        .import-dropzone {
+            border: 2px dashed #30363d;
+            border-radius: 6px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #0d1117;
+        }
+        .import-dropzone:hover, .import-dropzone.dragover {
+            border-color: #58a6ff;
+            background: #161b22;
+        }
+        .import-dropzone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            color: #8b949e;
+        }
+        .import-dropzone-content span:first-child {
+            color: #58a6ff;
+            font-weight: bold;
+        }
+        .import-hint {
+            font-size: 0.7rem;
+            opacity: 0.7;
+        }
+        .import-dropzone.success { border-color: #3fb950; background: rgba(63, 185, 80, 0.1); }
+        .import-dropzone.error { border-color: #f85149; background: rgba(248, 81, 73, 0.1); }
         .dep-tag {
             display: inline-flex;
             align-items: center;
@@ -1250,6 +1303,34 @@
                         </div>
                     </div>
                 </div>
+                <div class="panel" id="filter-panel">
+                    <h2>Filter Nodes</h2>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                        <button class="filter-btn" data-filter="roots" title="Show only root nodes">Roots</button>
+                        <button class="filter-btn" data-filter="leaves" title="Show only leaf nodes">Leaves</button>
+                        <button class="filter-btn" data-filter="critical" title="Show high-criticality nodes">Critical</button>
+                        <button class="filter-btn active" data-filter="all" title="Show all nodes">All</button>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Type</span>
+                        <select id="filter-type" class="filter-select" style="width: 100%;">
+                            <option value="">All types</option>
+                        </select>
+                    </div>
+                    <div class="info-row" style="margin-top: 0.5rem;">
+                        <span class="info-label">Depth</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="number" id="filter-depth-min" class="filter-input" placeholder="min" min="0" style="width: 50px;">
+                            <span style="color: #8b949e;">-</span>
+                            <input type="number" id="filter-depth-max" class="filter-input" placeholder="max" min="0" style="width: 50px;">
+                        </div>
+                    </div>
+                    <div class="info-row" style="margin-top: 0.5rem;">
+                        <span class="info-label">Min Dependents</span>
+                        <input type="number" id="filter-min-deps" class="filter-input" placeholder="0" min="0" style="width: 60px;">
+                    </div>
+                    <button class="api-btn secondary" onclick="clearFilters()" style="margin-top: 0.75rem; width: 100%;">Clear Filters</button>
+                </div>
                 <div class="panel">
                     <h2>Node Colors (Criticality)</h2>
                     <div class="crit-scale">
@@ -1337,6 +1418,37 @@
                                 <span class="api-result-count" id="chain-count"></span>
                             </div>
                             <div class="api-result-code" id="chain-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PathFinder -->
+                <div class="endpoint" id="endpoint-pathfinder">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method query">QUERY</span>
+                        <span class="endpoint-path">#PathFinder</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Find shortest path between any two nodes in the graph.</div>
+                        <div class="api-cue-expr">CUE: <code>path: #PathFinder & {Graph: infra, From: "<span id="path-from-expr">-</span>", To: "<span id="path-to-expr">-</span>"}</code></div>
+                        <div class="api-controls">
+                            <div class="api-control-group">
+                                <span class="api-control-label">From Node</span>
+                                <select class="api-select" id="path-from"></select>
+                            </div>
+                            <div class="api-control-group">
+                                <span class="api-control-label">To Node</span>
+                                <select class="api-select" id="path-to"></select>
+                            </div>
+                            <button class="api-btn" onclick="runPathFinder()">Find Path</button>
+                            <button class="api-btn secondary" id="path-show-graph" onclick="showInGraph('path')" style="display: none;">Show in Graph</button>
+                        </div>
+                        <div class="api-result" id="path-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Result: path</span>
+                                <span class="api-result-count" id="path-count"></span>
+                            </div>
+                            <div class="api-result-code" id="path-output"></div>
                         </div>
                     </div>
                 </div>
@@ -1453,6 +1565,55 @@
                                 <span class="api-result-count" id="validate-count"></span>
                             </div>
                             <div class="api-result-code" id="validate-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graph Diff -->
+                <div class="endpoint" id="endpoint-diff">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method" style="background: #a371f7;">DIFF</span>
+                        <span class="endpoint-path">Graph Diff</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Compare current graph with a previous state. Paste previous JSON or export output.</div>
+                        <div class="api-controls" style="flex-direction: column; align-items: stretch;">
+                            <textarea id="diff-input" placeholder="Paste previous graph JSON here (nodes array or full export)..." style="width: 100%; height: 80px; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; padding: 0.5rem; font-family: monospace; font-size: 0.75rem; resize: vertical;"></textarea>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button class="api-btn" onclick="runGraphDiff()">Compare</button>
+                                <button class="api-btn secondary" id="diff-show-graph" onclick="showInGraph('diff')" style="display: none;">Show in Graph</button>
+                            </div>
+                        </div>
+                        <div class="api-result" id="diff-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label">Diff Result</span>
+                                <span class="api-result-count" id="diff-count"></span>
+                            </div>
+                            <div class="api-result-code" id="diff-output"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Formats -->
+                <div class="endpoint" id="endpoint-export">
+                    <div class="endpoint-header" onclick="this.parentElement.classList.toggle('expanded')">
+                        <span class="endpoint-method" style="background: #388bfd;">EXPORT</span>
+                        <span class="endpoint-path">Graph Formats</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-desc">Export current graph to various formats for external tools.</div>
+                        <div class="api-controls" style="flex-wrap: wrap;">
+                            <button class="api-btn" onclick="exportToDOT()">DOT (Graphviz)</button>
+                            <button class="api-btn" onclick="exportToMermaid()">Mermaid</button>
+                            <button class="api-btn" onclick="exportToPlantUML()">PlantUML</button>
+                        </div>
+                        <div class="api-result" id="export-result" style="display: none;">
+                            <div class="api-result-header">
+                                <span class="code-label" id="export-format-label">Format</span>
+                                <button class="api-btn secondary" style="margin-left: auto; padding: 0.25rem 0.5rem; font-size: 0.7rem;" onclick="copyExport()">Copy</button>
+                                <button class="api-btn secondary" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;" onclick="downloadExport()">Download</button>
+                            </div>
+                            <div class="api-result-code" id="export-output" style="max-height: 300px;"></div>
                         </div>
                     </div>
                 </div>
@@ -1681,7 +1842,28 @@
                 <div class="panel">
                     <h2>Change History</h2>
                     <div class="help" style="margin-bottom: 1rem;">
-                        Track infrastructure changes over time. Click commits to see details.
+                        Track infrastructure changes over time. Load git history or view embedded changes.
+                    </div>
+                    <div id="history-load-section" style="margin-top: 0.75rem;">
+                        <button class="add-form-btn secondary" onclick="toggleGitLogInput()" id="history-load-btn">Load Git History</button>
+                        <div id="git-log-input-section" style="display: none; margin-top: 0.75rem;">
+                            <div class="help" style="margin-bottom: 0.5rem; font-size: 0.7rem;">
+                                Paste output from: <code style="background: #0d1117; padding: 0.125rem 0.25rem; border-radius: 3px;">git log --oneline --since="1 month ago" -- *.cue</code>
+                            </div>
+                            <textarea id="git-log-input" placeholder="a1b2c3d feat: add nginx reverse proxy&#10;e4f5g6h fix: update dns dependency&#10;i7j8k9l refactor: split large resources" style="width: 100%; height: 100px; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; padding: 0.5rem; font-family: monospace; font-size: 0.75rem; resize: vertical; box-sizing: border-box;"></textarea>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button class="add-form-btn" onclick="parseGitLog()">Parse</button>
+                                <button class="add-form-btn secondary" onclick="loadSampleHistory()">Load Sample</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="history-evolution" class="panel" style="display: none;">
+                    <h2>Evolution Chart</h2>
+                    <div id="history-chart" style="height: 80px; display: flex; align-items: flex-end; gap: 2px; padding: 0.5rem 0;"></div>
+                    <div style="display: flex; justify-content: space-between; color: #6e7681; font-size: 0.7rem;">
+                        <span id="history-chart-start">-</span>
+                        <span id="history-chart-end">-</span>
                     </div>
                 </div>
                 <div id="history-summary" class="panel" style="display: none;">
@@ -1694,11 +1876,15 @@
                         <span class="info-label">Last Change</span>
                         <span class="info-value" id="history-last-change">-</span>
                     </div>
+                    <div class="info-row">
+                        <span class="info-label">Active Contributors</span>
+                        <span class="info-value" id="history-contributors">-</span>
+                    </div>
                 </div>
                 <div id="history-timeline" class="panel">
                     <h2>Timeline</h2>
                     <div id="history-list" style="max-height: 500px; overflow-y: auto;"></div>
-                    <div id="history-empty" class="help">No history data available for this graph.</div>
+                    <div id="history-empty" class="help">No history data available. Click "Load Git History" to import commit data.</div>
                 </div>
                 <div class="panel">
                     <h2>Import</h2>
@@ -1706,14 +1892,68 @@
                         Import infrastructure definitions from external sources.
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                        <button class="add-form-btn secondary" onclick="document.getElementById('terraform-file-input').click()">
-                            Import Terraform State
+                        <!-- Terraform Import -->
+                        <div class="import-dropzone" id="terraform-dropzone" ondrop="handleTerraformDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                            <div class="import-dropzone-content">
+                                <span style="font-size: 1.5rem;">tf</span>
+                                <span>Terraform State</span>
+                                <span class="import-hint">Drop .tfstate or click</span>
+                            </div>
+                            <input type="file" id="terraform-file-input" accept=".json,.tfstate" style="display: none;" onchange="importTerraformState(this.files[0])">
+                        </div>
+                        <!-- Pulumi Import -->
+                        <div class="import-dropzone" id="pulumi-dropzone" ondrop="handlePulumiDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                            <div class="import-dropzone-content">
+                                <span style="font-size: 1.5rem;">pu</span>
+                                <span>Pulumi Stack</span>
+                                <span class="import-hint">Drop stack.json or click</span>
+                            </div>
+                            <input type="file" id="pulumi-file-input" accept=".json,.yaml" style="display: none;" onchange="importPulumiStack(this.files[0])">
+                        </div>
+                        <!-- Proxmox Import -->
+                        <button class="add-form-btn secondary" onclick="showProxmoxImportModal()">
+                            Import from Proxmox API
                         </button>
-                        <input type="file" id="terraform-file-input" accept=".json,.tfstate" style="display: none;" onchange="importTerraformState(this.files[0])">
-                        <button class="add-form-btn secondary" onclick="document.getElementById('pulumi-file-input').click()">
-                            Import Pulumi Stack
-                        </button>
-                        <input type="file" id="pulumi-file-input" accept=".json,.yaml" style="display: none;" onchange="importPulumiStack(this.files[0])">
+                        <!-- Load from URL -->
+                        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #21262d;">
+                            <div class="help" style="font-size: 0.7rem; margin-bottom: 0.25rem;">Load JSON from URL (CORS must be enabled)</div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="url-import-input" placeholder="https://example.com/infra.json" style="flex: 1; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 0.4rem; border-radius: 4px; font-size: 0.75rem;">
+                                <button class="add-form-btn secondary" onclick="loadFromUrl()" style="padding: 0.4rem 0.75rem;">Load</button>
+                            </div>
+                        </div>
+                        <!-- Import Status -->
+                        <div id="import-status" style="display: none; padding: 0.5rem; background: #0d1117; border-radius: 4px; font-size: 0.75rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Proxmox Import Modal -->
+            <div id="proxmox-import-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; width: 400px; max-width: 90%;">
+                    <h3 style="margin: 0 0 1rem 0; color: #c9d1d9;">Import from Proxmox API</h3>
+                    <div class="help" style="margin-bottom: 1rem;">
+                        Connect to a Proxmox VE API to import containers and VMs.
+                        Credentials are used client-side only and not stored.
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div>
+                            <label style="display: block; color: #8b949e; font-size: 0.75rem; margin-bottom: 0.25rem;">API URL</label>
+                            <input type="text" id="proxmox-url" placeholder="https://proxmox.example.com:8006" style="width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 0.5rem; border-radius: 4px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display: block; color: #8b949e; font-size: 0.75rem; margin-bottom: 0.25rem;">Token ID (user@realm!tokenid)</label>
+                            <input type="text" id="proxmox-token-id" placeholder="user@pam!mytoken" style="width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 0.5rem; border-radius: 4px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display: block; color: #8b949e; font-size: 0.75rem; margin-bottom: 0.25rem;">Token Secret</label>
+                            <input type="password" id="proxmox-token-secret" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="width: 100%; background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 0.5rem; border-radius: 4px; box-sizing: border-box;">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button class="add-form-btn" onclick="importFromProxmox()" style="flex: 1;">Import</button>
+                            <button class="add-form-btn secondary" onclick="hideProxmoxImportModal()" style="flex: 1;">Cancel</button>
+                        </div>
+                        <div id="proxmox-import-status" style="color: #8b949e; font-size: 0.75rem; display: none;"></div>
                     </div>
                 </div>
             </div>
@@ -1755,6 +1995,9 @@
             <button class="d3-tab" data-d3view="matrix">Matrix</button>
             <button class="d3-tab" data-d3view="treemap">Treemap</button>
             <button class="d3-tab" data-d3view="sunburst">Sunburst</button>
+            <button class="d3-tab" data-d3view="force">Force</button>
+            <button class="d3-tab" data-d3view="bundle">Bundle</button>
+            <button class="d3-tab" data-d3view="gantt">Gantt</button>
         </div>
         <div id="d3-viz" style="width: 100%; height: calc(100% - 50px); display: flex; align-items: center; justify-content: center;"></div>
     </div>
@@ -1767,41 +2010,9 @@
     let domHandlersInitialized = false;
     const BASE_IRI = 'https://infra.example.com/resources/';
 
-    // Type categories for badge styling
-    const typeCategories = {
-        // Semantic types (what it IS)
-        DNSServer: 'semantic', ReverseProxy: 'semantic', SourceControlManagement: 'semantic',
-        MonitoringServer: 'semantic', VirtualizationPlatform: 'semantic', Database: 'semantic',
-        APIServer: 'semantic', WebFrontend: 'semantic', CacheCluster: 'semantic',
-        MessageQueue: 'semantic', Worker: 'semantic', ScheduledJob: 'semantic',
-        LoadBalancer: 'semantic', AuthServer: 'semantic', SearchIndex: 'semantic',
-        LogAggregator: 'semantic', Region: 'semantic', AvailabilityZone: 'semantic',
-        Hypervisor: 'semantic',
-        // Implementation types (how it RUNS)
-        LXCContainer: 'implementation', VirtualMachine: 'implementation', DockerContainer: 'implementation',
-        Container: 'implementation',
-        // Classification types (operational category)
-        CriticalInfra: 'classification'
-    };
-
-    // Criticality color: blue (0 deps) → orange (mid) → red (max deps)
-    function criticalityColor(dependents, maxDependents) {
-        if (maxDependents === 0) return '#58a6ff';
-        const ratio = dependents / maxDependents;
-        if (ratio < 0.5) {
-            // Blue to orange
-            const r = Math.round(88 + (240 - 88) * (ratio * 2));
-            const g = Math.round(166 + (136 - 166) * (ratio * 2));
-            const b = Math.round(255 + (62 - 255) * (ratio * 2));
-            return `rgb(${r},${g},${b})`;
-        } else {
-            // Orange to red
-            const r = Math.round(240 + (248 - 240) * ((ratio - 0.5) * 2));
-            const g = Math.round(136 - 136 * ((ratio - 0.5) * 2));
-            const b = Math.round(62 - 62 * ((ratio - 0.5) * 2));
-            return `rgb(${r},${g},${b})`;
-        }
-    }
+    // Type categories and criticality color imported from shared.js
+    // - getTypeCategory(typeName) returns 'semantic', 'implementation', or 'classification'
+    // - criticalityColor(dependents, maxDependents) returns gradient color
 
     // Node color based on criticality (dependent count)
     function nodeColor(node) {
@@ -1840,12 +2051,61 @@
         'jsonld-export': 'Click any <strong>edge</strong> in the graph - see JSON-LD IRI resolution.'
     };
 
+    // Validate graph data structure (security: ensure it's data, not code)
+    function validateGraphData(data) {
+        if (!data || typeof data !== 'object') return false;
+        if (!Array.isArray(data.nodes)) return false;
+        // Ensure nodes have required fields and are plain data
+        for (const node of data.nodes) {
+            if (typeof node.id !== 'string') return false;
+            // Reject any functions or suspicious properties
+            if (typeof node === 'function') return false;
+            for (const key in node) {
+                if (typeof node[key] === 'function') return false;
+            }
+        }
+        return true;
+    }
+
     // Initialize visualization with loaded data
     async function init(exampleName = 'graph-patterns') {
+        // Check URL parameters for remote source or example override
+        const params = new URLSearchParams(window.location.search);
+        const remoteSource = params.get('source');
+        const urlExample = params.get('example');
+
         try {
-            const response = await fetch(`data/${exampleName}.json`);
-            graphData = await response.json();
+            if (remoteSource) {
+                // Load from remote URL (must be CORS-enabled, JSON only)
+                console.log('Loading from remote source:', remoteSource);
+                const response = await fetch(remoteSource);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('json') && !remoteSource.endsWith('.json')) {
+                    console.warn('Remote source may not be JSON');
+                }
+                const data = await response.json(); // Parse as JSON only - no eval
+                if (!validateGraphData(data)) {
+                    throw new Error('Invalid graph data structure');
+                }
+                graphData = data;
+                // Update example selector to show custom source
+                const select = document.getElementById('example-select');
+                if (select && !select.querySelector('option[value="custom"]')) {
+                    const opt = document.createElement('option');
+                    opt.value = 'custom';
+                    opt.textContent = 'Custom (URL)';
+                    select.appendChild(opt);
+                }
+                if (select) select.value = 'custom';
+            } else {
+                // Use URL example param or default
+                const example = urlExample || exampleName;
+                const response = await fetch(`data/${example}.json`);
+                graphData = await response.json();
+            }
         } catch (e) {
+            console.error('Load error:', e);
             // Fallback to embedded data if fetch fails
             graphData = {
                 nodes: [
@@ -1947,6 +2207,13 @@
                     selector: 'node.dimmed',
                     style: {
                         'opacity': 0.25
+                    }
+                },
+                {
+                    selector: 'node.filtered-out',
+                    style: {
+                        'opacity': 0.1,
+                        'events': 'no'
                     }
                 },
                 {
@@ -2075,6 +2342,7 @@
         populateTypesView();
         populateAnalysisView();
         populateApiExplorer();
+        initFilterPanel();
 
         // Re-render D3 view if it's currently active
         if (document.getElementById('view-d3').classList.contains('active')) {
@@ -2164,7 +2432,7 @@
             const typesEl = document.getElementById('detail-types');
             const types = normalizeTypes(data.types);
             typesEl.innerHTML = types.map(t =>
-                `<span class="type-badge ${typeCategories[t] || ''}">${t}</span>`
+                `<span class="type-badge ${getTypeCategory(t)}">${t}</span>`
             ).join('');
 
             // Show actions if available
@@ -2572,10 +2840,11 @@
         if (!container || !graphData.byType) return;
         container.innerHTML = '';
 
-        const typeColors = {
-            'semantic': '#58a6ff',
-            'implementation': '#a371f7',
-            'classification': '#f0883e'
+        // Category colors (uses CSS variables for theming)
+        const categoryColors = {
+            'semantic': 'var(--type-semantic, #58a6ff)',
+            'implementation': 'var(--type-implementation, #a371f7)',
+            'classification': 'var(--type-classification, #f0883e)'
         };
 
         // Sort types by resource count
@@ -2587,8 +2856,8 @@
             const resources = graphData.byType[typeName];
             if (!resources || resources.length === 0) return;
 
-            const category = typeCategories[typeName] || 'semantic';
-            const color = typeColors[category];
+            const category = getTypeCategory(typeName);
+            const color = categoryColors[category];
 
             const div = document.createElement('div');
             div.className = 'type-group';
@@ -3265,7 +3534,7 @@ ${paramLines}
     function populateApiExplorer() {
         if (!graphData || !graphData.nodes) return;
 
-        const selects = ['impact-target', 'chain-target', 'immediate-target'];
+        const selects = ['impact-target', 'chain-target', 'immediate-target', 'path-from', 'path-to'];
         const sortedNodes = [...graphData.nodes].sort((a, b) => b.dependents - a.dependents);
 
         selects.forEach(selectId => {
@@ -3292,6 +3561,8 @@ ${paramLines}
         const impactTarget = document.getElementById('impact-target');
         const chainTarget = document.getElementById('chain-target');
         const immediateTarget = document.getElementById('immediate-target');
+        const pathFrom = document.getElementById('path-from');
+        const pathTo = document.getElementById('path-to');
 
         if (impactTarget) {
             document.getElementById('impact-target-expr').textContent = impactTarget.value;
@@ -3301,6 +3572,12 @@ ${paramLines}
         }
         if (immediateTarget) {
             document.getElementById('immediate-target-expr').textContent = immediateTarget.value;
+        }
+        if (pathFrom) {
+            document.getElementById('path-from-expr').textContent = pathFrom.value;
+        }
+        if (pathTo) {
+            document.getElementById('path-to-expr').textContent = pathTo.value;
         }
     }
 
@@ -3395,6 +3672,79 @@ ${paramLines}
         document.getElementById('immediate-show-graph').style.display = dependents.length > 0 ? 'flex' : 'none';
     }
 
+    // PathFinder: Find shortest path between any two nodes using BFS
+    function runPathFinder() {
+        const fromNode = document.getElementById('path-from').value;
+        const toNode = document.getElementById('path-to').value;
+        if (!fromNode || !toNode || !graphData) return;
+
+        if (fromNode === toNode) {
+            const result = { from: fromNode, to: toNode, path: [fromNode], length: 0, message: 'Same node' };
+            document.getElementById('path-result').style.display = 'block';
+            document.getElementById('path-count').textContent = '0 hops';
+            document.getElementById('path-output').textContent = JSON.stringify(result, null, 2);
+            document.getElementById('path-show-graph').style.display = 'none';
+            return;
+        }
+
+        // Build bidirectional adjacency list (path can go either direction)
+        const adj = {};
+        graphData.nodes.forEach(n => adj[n.id] = []);
+        graphData.edges.forEach(e => {
+            adj[e.source].push(e.target);
+            adj[e.target].push(e.source);
+        });
+
+        // BFS to find shortest path
+        const queue = [[fromNode]];
+        const visited = new Set([fromNode]);
+
+        while (queue.length > 0) {
+            const path = queue.shift();
+            const current = path[path.length - 1];
+
+            if (current === toNode) {
+                // Found the path
+                const result = {
+                    from: fromNode,
+                    to: toNode,
+                    path: path,
+                    length: path.length - 1
+                };
+
+                lastQueryResults.path = { path };
+
+                document.getElementById('path-result').style.display = 'block';
+                document.getElementById('path-count').textContent = `${path.length - 1} hops`;
+                document.getElementById('path-output').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('path-show-graph').style.display = 'flex';
+                return;
+            }
+
+            for (const neighbor of adj[current] || []) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push([...path, neighbor]);
+                }
+            }
+        }
+
+        // No path found
+        const result = {
+            from: fromNode,
+            to: toNode,
+            path: null,
+            message: 'No path exists between these nodes'
+        };
+
+        lastQueryResults.path = null;
+
+        document.getElementById('path-result').style.display = 'block';
+        document.getElementById('path-count').textContent = 'No path';
+        document.getElementById('path-output').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('path-show-graph').style.display = 'none';
+    }
+
     // CriticalityRank: Show pre-computed criticality ranking
     function runCriticalityRank() {
         if (!graphData || !graphData.criticality) return;
@@ -3477,6 +3827,228 @@ ${paramLines}
         const statusText = validation.valid ? 'Valid' : `${result.issue_count} issues`;
         document.getElementById('validate-count').textContent = statusText;
         document.getElementById('validate-output').textContent = JSON.stringify(result, null, 2);
+    }
+
+    // Export state for copy/download
+    let lastExport = { format: '', content: '', filename: '' };
+
+    // Export to DOT (Graphviz) format
+    function exportToDOT() {
+        if (!graphData) return;
+
+        let dot = 'digraph InfraGraph {\n';
+        dot += '    rankdir=TB;\n';
+        dot += '    node [shape=box, style=rounded];\n\n';
+
+        // Add nodes with labels showing type
+        graphData.nodes.forEach(n => {
+            const types = (n.types || []).join(', ');
+            const label = types ? `${n.id}\\n[${types}]` : n.id;
+            dot += `    "${n.id}" [label="${label}"];\n`;
+        });
+
+        dot += '\n';
+
+        // Add edges
+        graphData.edges.forEach(e => {
+            dot += `    "${e.source}" -> "${e.target}";\n`;
+        });
+
+        dot += '}\n';
+
+        showExport('DOT (Graphviz)', dot, 'graph.dot');
+    }
+
+    // Export to Mermaid format
+    function exportToMermaid() {
+        if (!graphData) return;
+
+        let mermaid = 'graph TD\n';
+
+        // Add nodes (Mermaid auto-creates from edges, but we add explicit definitions for labels)
+        graphData.nodes.forEach(n => {
+            const types = (n.types || []).slice(0, 2).join(', ');
+            if (types) {
+                mermaid += `    ${sanitizeMermaidId(n.id)}["${n.id}<br/><small>${types}</small>"]\n`;
+            } else {
+                mermaid += `    ${sanitizeMermaidId(n.id)}["${n.id}"]\n`;
+            }
+        });
+
+        mermaid += '\n';
+
+        // Add edges
+        graphData.edges.forEach(e => {
+            mermaid += `    ${sanitizeMermaidId(e.source)} --> ${sanitizeMermaidId(e.target)}\n`;
+        });
+
+        showExport('Mermaid', mermaid, 'graph.mmd');
+    }
+
+    // Sanitize node IDs for Mermaid (no hyphens, special chars)
+    function sanitizeMermaidId(id) {
+        return id.replace(/[^a-zA-Z0-9_]/g, '_');
+    }
+
+    // Export to PlantUML format
+    function exportToPlantUML() {
+        if (!graphData) return;
+
+        let puml = '@startuml\n';
+        puml += 'skinparam componentStyle rectangle\n';
+        puml += 'left to right direction\n\n';
+
+        // Group by depth for visual organization
+        const byDepth = {};
+        graphData.nodes.forEach(n => {
+            const d = n.depth || 0;
+            if (!byDepth[d]) byDepth[d] = [];
+            byDepth[d].push(n);
+        });
+
+        // Add nodes grouped by layer
+        Object.keys(byDepth).sort((a, b) => a - b).forEach(depth => {
+            puml += `package "Layer ${depth}" {\n`;
+            byDepth[depth].forEach(n => {
+                const types = (n.types || []).slice(0, 2).join(', ');
+                const alias = sanitizePlantUMLId(n.id);
+                puml += `    component "${n.id}" as ${alias}\n`;
+            });
+            puml += '}\n\n';
+        });
+
+        // Add edges
+        graphData.edges.forEach(e => {
+            puml += `${sanitizePlantUMLId(e.source)} --> ${sanitizePlantUMLId(e.target)}\n`;
+        });
+
+        puml += '@enduml\n';
+
+        showExport('PlantUML', puml, 'graph.puml');
+    }
+
+    // Sanitize node IDs for PlantUML
+    function sanitizePlantUMLId(id) {
+        return id.replace(/[^a-zA-Z0-9_]/g, '_');
+    }
+
+    // Show export result
+    function showExport(format, content, filename) {
+        lastExport = { format, content, filename };
+        document.getElementById('export-result').style.display = 'block';
+        document.getElementById('export-format-label').textContent = format;
+        document.getElementById('export-output').textContent = content;
+    }
+
+    // Copy export to clipboard
+    function copyExport() {
+        if (!lastExport.content) return;
+        navigator.clipboard.writeText(lastExport.content).then(() => {
+            const btn = document.querySelector('#endpoint-export .api-btn.secondary');
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        });
+    }
+
+    // Download export as file
+    function downloadExport() {
+        if (!lastExport.content) return;
+        const blob = new Blob([lastExport.content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = lastExport.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Graph Diff: Compare current graph with previous state
+    function runGraphDiff() {
+        const input = document.getElementById('diff-input').value.trim();
+        if (!input || !graphData) return;
+
+        let prevNodes;
+        try {
+            const parsed = JSON.parse(input);
+            // Handle various input formats
+            if (Array.isArray(parsed)) {
+                prevNodes = parsed;
+            } else if (parsed.nodes) {
+                prevNodes = parsed.nodes;
+            } else if (parsed.resources) {
+                prevNodes = Object.entries(parsed.resources).map(([id, r]) => ({ id, ...r }));
+            } else {
+                throw new Error('Unrecognized format');
+            }
+        } catch (e) {
+            document.getElementById('diff-result').style.display = 'block';
+            document.getElementById('diff-count').textContent = 'Error';
+            document.getElementById('diff-output').textContent = 'Invalid JSON: ' + e.message;
+            document.getElementById('diff-show-graph').style.display = 'none';
+            return;
+        }
+
+        // Build sets for comparison
+        const prevIds = new Set(prevNodes.map(n => n.id));
+        const currIds = new Set(graphData.nodes.map(n => n.id));
+
+        // Calculate diff
+        const added = graphData.nodes.filter(n => !prevIds.has(n.id)).map(n => n.id);
+        const removed = prevNodes.filter(n => !currIds.has(n.id)).map(n => n.id);
+
+        // Check for changes in existing nodes (deps or types)
+        const changed = [];
+        graphData.nodes.forEach(curr => {
+            const prev = prevNodes.find(p => p.id === curr.id);
+            if (!prev) return;
+
+            const changes = [];
+            // Compare dependencies
+            const prevDeps = new Set(prev.depends_on ? Object.keys(prev.depends_on) : []);
+            const currDeps = new Set(curr.depends || []);
+            const addedDeps = [...currDeps].filter(d => !prevDeps.has(d));
+            const removedDeps = [...prevDeps].filter(d => !currDeps.has(d));
+            if (addedDeps.length) changes.push(`+deps: ${addedDeps.join(', ')}`);
+            if (removedDeps.length) changes.push(`-deps: ${removedDeps.join(', ')}`);
+
+            // Compare types
+            const prevTypes = new Set(Array.isArray(prev['@type']) ? prev['@type'] : Object.keys(prev['@type'] || {}));
+            const currTypes = new Set(curr.types || []);
+            const addedTypes = [...currTypes].filter(t => !prevTypes.has(t));
+            const removedTypes = [...prevTypes].filter(t => !currTypes.has(t));
+            if (addedTypes.length) changes.push(`+types: ${addedTypes.join(', ')}`);
+            if (removedTypes.length) changes.push(`-types: ${removedTypes.join(', ')}`);
+
+            if (changes.length) {
+                changed.push({ id: curr.id, changes });
+            }
+        });
+
+        const result = {
+            added: added,
+            removed: removed,
+            changed: changed,
+            summary: {
+                added_count: added.length,
+                removed_count: removed.length,
+                changed_count: changed.length,
+                total_changes: added.length + removed.length + changed.length
+            }
+        };
+
+        // Store for Show in Graph
+        lastQueryResults.diff = { added, removed, changed: changed.map(c => c.id) };
+
+        // Display result
+        document.getElementById('diff-result').style.display = 'block';
+        const total = result.summary.total_changes;
+        document.getElementById('diff-count').textContent = total === 0 ? 'No changes' :
+            `+${added.length} -${removed.length} ~${changed.length}`;
+        document.getElementById('diff-output').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('diff-show-graph').style.display = total > 0 ? 'flex' : 'none';
     }
 
     // Show in Graph: Switch to graph view and highlight relevant nodes
@@ -3579,6 +4151,74 @@ ${paramLines}
                     });
                 }
                 break;
+
+            case 'path':
+                // Highlight the path between two nodes
+                if (results.path && results.path.length > 0) {
+                    cy.nodes().addClass('dimmed');
+                    cy.edges().addClass('dimmed');
+                    // Highlight first and last as sources, middle as path
+                    results.path.forEach((id, idx) => {
+                        const node = cy.getElementById(id);
+                        node.removeClass('dimmed');
+                        if (idx === 0 || idx === results.path.length - 1) {
+                            node.addClass('impact-source');
+                        } else {
+                            node.addClass('impact-highlight');
+                        }
+                    });
+                    // Highlight edges along the path (bidirectional)
+                    for (let i = 0; i < results.path.length - 1; i++) {
+                        const a = results.path[i];
+                        const b = results.path[i + 1];
+                        cy.edges().forEach(edge => {
+                            const src = edge.source().id();
+                            const tgt = edge.target().id();
+                            if ((src === a && tgt === b) || (src === b && tgt === a)) {
+                                edge.removeClass('dimmed').addClass('impact-highlight');
+                            }
+                        });
+                    }
+                }
+                break;
+
+            case 'diff':
+                // Highlight added (green), removed (red - won't exist in current graph), changed (yellow)
+                if (results.added || results.changed) {
+                    cy.nodes().addClass('dimmed');
+                    cy.edges().addClass('dimmed');
+
+                    // Highlight added nodes in green
+                    results.added.forEach(id => {
+                        const node = cy.getElementById(id);
+                        if (node.length) {
+                            node.removeClass('dimmed');
+                            node.style('background-color', '#3fb950');
+                            node.style('border-color', '#238636');
+                        }
+                    });
+
+                    // Highlight changed nodes in yellow
+                    results.changed.forEach(id => {
+                        const node = cy.getElementById(id);
+                        if (node.length) {
+                            node.removeClass('dimmed');
+                            node.style('background-color', '#d29922');
+                            node.style('border-color', '#9e6a03');
+                        }
+                    });
+
+                    // Show edges involving changed/added nodes
+                    cy.edges().forEach(edge => {
+                        const src = edge.source().id();
+                        const tgt = edge.target().id();
+                        const involved = [...results.added, ...results.changed];
+                        if (involved.includes(src) || involved.includes(tgt)) {
+                            edge.removeClass('dimmed');
+                        }
+                    });
+                }
+                break;
         }
 
         // Fit view to highlighted nodes after a short delay
@@ -3600,37 +4240,18 @@ ${paramLines}
     let currentD3View = 'sankey';
     let sunburstRoot = null; // For drill-down state
 
-    // Type colors for D3 visualizations
-    const d3TypeColors = {
-        'Region': '#f0883e',
-        'DNSServer': '#3fb950',
-        'AuthServer': '#a371f7',
-        'Database': '#58a6ff',
-        'CacheCluster': '#f778ba',
-        'APIServer': '#79c0ff',
-        'WebFrontend': '#ffa657',
-        'LoadBalancer': '#ff7b72',
-        'MessageQueue': '#d2a8ff',
-        'Worker': '#7ee787',
-        'ScheduledJob': '#a5d6ff',
-        'MonitoringServer': '#ffc658',
-        'LogAggregator': '#ffb86c',
-        'SearchIndex': '#bd93f9',
-        'VirtualizationPlatform': '#ff79c6',
-        'LXCContainer': '#8be9fd',
-        'Container': '#8be9fd',
-        'CriticalInfra': '#ff5555',
-        'ReverseProxy': '#50fa7b',
-        'SourceControlManagement': '#f1fa8c',
-        'default': '#6e7681'
-    };
+    // Type colors imported from shared.js (typeColors constant)
+    // D3 visualizations use the shared color palette
 
     const d3ViewDescriptions = {
         sankey: 'Sankey diagram shows dependency flow from roots to leaves. Width indicates number of downstream dependents.',
         chord: 'Chord diagram shows type-to-type relationships. Ribbons connect types that have dependencies between them.',
         matrix: 'Adjacency matrix shows all dependencies. Filled cells indicate a dependency from row to column.',
         treemap: 'Treemap shows resources grouped by type. Size indicates number of dependents (criticality).',
-        sunburst: 'Sunburst shows hierarchical depth with drill-down. Click segments to zoom into subtrees.'
+        sunburst: 'Sunburst shows hierarchical depth with drill-down. Click segments to zoom into subtrees.',
+        force: 'Force-directed layout positions nodes by simulation. Related nodes cluster together. Drag nodes to reposition.',
+        bundle: 'Hierarchical edge bundling shows dependencies as curved paths. Nodes arranged by type, edges bundled to reveal patterns.',
+        gantt: 'Gantt chart shows deployment order. Resources at each layer deploy in parallel after dependencies complete.'
     };
 
     // D3 configuration constants
@@ -3666,12 +4287,13 @@ ${paramLines}
         console.error('D3 render error:', error);
     }
 
+    // Use shared getNodeColor from shared.js, or fallback to this for partial node objects
     function getD3NodeColor(node) {
-        const types = normalizeTypes(node.types);
+        const types = getTypes(node);
         for (const t of types) {
-            if (d3TypeColors[t]) return d3TypeColors[t];
+            if (typeColors[t]) return typeColors[t];
         }
-        return d3TypeColors.default;
+        return typeColors.default;
     }
 
     function updateD3Stats() {
@@ -3692,7 +4314,7 @@ ${paramLines}
             item.className = 'legend-item';
             const colorDiv = document.createElement('div');
             colorDiv.className = 'legend-color';
-            colorDiv.style.background = d3TypeColors[type] || d3TypeColors.default;
+            colorDiv.style.background = typeColors[type] || typeColors.default;
             const span = document.createElement('span');
             span.textContent = type;
             item.appendChild(colorDiv);
@@ -3731,6 +4353,9 @@ ${paramLines}
                     case 'matrix': renderD3Matrix(container); break;
                     case 'treemap': renderD3Treemap(container); break;
                     case 'sunburst': renderD3Sunburst(container); break;
+                    case 'force': renderD3Force(container); break;
+                    case 'bundle': renderD3Bundle(container); break;
+                    case 'gantt': renderD3Gantt(container); break;
                 }
             } catch (error) {
                 container.textContent = '';
@@ -3869,7 +4494,7 @@ ${paramLines}
             .attr('class', 'group')
             .append('path')
             .attr('d', arc)
-            .attr('fill', d => d3TypeColors[types[d.index]] || d3TypeColors.default)
+            .attr('fill', d => typeColors[types[d.index]] || typeColors.default)
             .attr('stroke', '#0d1117');
 
         svg.append('g').selectAll('g')
@@ -3887,7 +4512,7 @@ ${paramLines}
             .join('path')
             .attr('class', 'ribbon')
             .attr('d', ribbon)
-            .attr('fill', d => d3TypeColors[types[d.source.index]] || d3TypeColors.default);
+            .attr('fill', d => typeColors[types[d.source.index]] || typeColors.default);
     }
 
     function renderD3Matrix(container) {
@@ -4009,7 +4634,7 @@ ${paramLines}
             .attr('y', d => d.y0)
             .attr('width', d => d.x1 - d.x0)
             .attr('height', d => d.y1 - d.y0)
-            .attr('fill', d => d3TypeColors[d.data.name] || d3TypeColors.default)
+            .attr('fill', d => typeColors[d.data.name] || typeColors.default)
             .attr('opacity', 0.3);
 
         groups.append('text')
@@ -4028,7 +4653,7 @@ ${paramLines}
             .attr('y', d => d.y0)
             .attr('width', d => d.x1 - d.x0)
             .attr('height', d => d.y1 - d.y0)
-            .attr('fill', d => d3TypeColors[d.parent.data.name] || d3TypeColors.default)
+            .attr('fill', d => typeColors[d.parent.data.name] || typeColors.default)
             .on('mouseover', (e, d) => showD3Tooltip(e, d.data.node))
             .on('mouseout', hideD3Tooltip);
 
@@ -4240,6 +4865,404 @@ ${paramLines}
         updateCenter(root);
     }
 
+    // Force-directed graph layout
+    function renderD3Force(container) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        const svg = d3.create('svg')
+            .attr('viewBox', [0, 0, width, height])
+            .attr('width', '100%')
+            .attr('height', '100%');
+
+        // Prepare nodes and links
+        const nodes = graphData.nodes.map(n => ({
+            id: n.id,
+            types: n.types,
+            depth: n.depth,
+            dependents: n.dependents
+        }));
+
+        const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+        const links = graphData.edges.map(e => ({
+            source: e.source,
+            target: e.target
+        })).filter(l => nodeById.has(l.source) && nodeById.has(l.target));
+
+        // Create simulation
+        const simulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+            .force('charge', d3.forceManyBody().strength(-200))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(30));
+
+        // Draw links
+        const link = svg.append('g')
+            .attr('stroke', '#30363d')
+            .attr('stroke-opacity', 0.6)
+            .selectAll('line')
+            .data(links)
+            .join('line')
+            .attr('stroke-width', 1.5);
+
+        // Draw nodes
+        const node = svg.append('g')
+            .selectAll('g')
+            .data(nodes)
+            .join('g')
+            .attr('cursor', 'grab')
+            .call(d3.drag()
+                .on('start', dragstarted)
+                .on('drag', dragged)
+                .on('end', dragended));
+
+        // Node circles
+        node.append('circle')
+            .attr('r', d => Math.max(8, Math.min(20, 8 + d.dependents * 2)))
+            .attr('fill', d => getD3NodeColor(d))
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1.5);
+
+        // Node labels
+        node.append('text')
+            .attr('x', 0)
+            .attr('y', d => Math.max(8, Math.min(20, 8 + d.dependents * 2)) + 12)
+            .attr('text-anchor', 'middle')
+            .attr('fill', '#c9d1d9')
+            .attr('font-size', '10px')
+            .text(d => d.id.length > 12 ? d.id.slice(0, 10) + '..' : d.id);
+
+        // Tooltip events
+        node.on('mouseover', (e, d) => showD3Tooltip(e, d))
+            .on('mouseout', () => hideD3Tooltip());
+
+        // Tick handler
+        simulation.on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+            d3.select(this).attr('cursor', 'grabbing');
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+            d3.select(this).attr('cursor', 'grab');
+        }
+
+        container.appendChild(svg.node());
+    }
+
+    // Hierarchical edge bundling
+    function renderD3Bundle(container) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const radius = Math.min(width, height) / 2 - 100;
+
+        const svg = d3.create('svg')
+            .attr('viewBox', [-width / 2, -height / 2, width, height])
+            .attr('width', '100%')
+            .attr('height', '100%');
+
+        // Group nodes by their primary type
+        const nodesByType = {};
+        graphData.nodes.forEach(n => {
+            const type = (n.types && n.types[0]) || 'Other';
+            if (!nodesByType[type]) nodesByType[type] = [];
+            nodesByType[type].push(n);
+        });
+
+        // Build hierarchical structure: root -> types -> nodes
+        const hierarchy = {
+            name: 'root',
+            children: Object.entries(nodesByType).map(([type, nodes]) => ({
+                name: type,
+                children: nodes.map(n => ({ name: n.id, data: n }))
+            }))
+        };
+
+        // Create cluster layout
+        const root = d3.hierarchy(hierarchy);
+        const cluster = d3.cluster().size([2 * Math.PI, radius]);
+        cluster(root);
+
+        // Create a map of node positions
+        const nodeMap = new Map();
+        root.leaves().forEach(leaf => {
+            nodeMap.set(leaf.data.name, leaf);
+        });
+
+        // Build links from graph edges
+        const links = graphData.edges
+            .filter(e => nodeMap.has(e.source) && nodeMap.has(e.target))
+            .map(e => ({
+                source: nodeMap.get(e.source),
+                target: nodeMap.get(e.target)
+            }));
+
+        // Line generator with bundling
+        const line = d3.lineRadial()
+            .curve(d3.curveBundle.beta(0.85))
+            .radius(d => d.y)
+            .angle(d => d.x);
+
+        // Draw links
+        const link = svg.append('g')
+            .attr('fill', 'none')
+            .selectAll('path')
+            .data(links)
+            .join('path')
+            .attr('stroke', '#30363d')
+            .attr('stroke-opacity', 0.4)
+            .attr('stroke-width', 1)
+            .attr('d', d => line(d.source.path(d.target)));
+
+        // Draw nodes
+        const node = svg.append('g')
+            .selectAll('g')
+            .data(root.leaves())
+            .join('g')
+            .attr('transform', d => `rotate(${d.x * 180 / Math.PI - 90}) translate(${d.y},0)`);
+
+        node.append('circle')
+            .attr('r', 4)
+            .attr('fill', d => d.data.data ? getD3NodeColor(d.data.data) : '#6e7681');
+
+        node.append('text')
+            .attr('dy', '0.31em')
+            .attr('x', d => d.x < Math.PI ? 6 : -6)
+            .attr('text-anchor', d => d.x < Math.PI ? 'start' : 'end')
+            .attr('transform', d => d.x >= Math.PI ? 'rotate(180)' : null)
+            .attr('fill', '#c9d1d9')
+            .attr('font-size', '10px')
+            .text(d => {
+                const name = d.data.name;
+                return name.length > 15 ? name.slice(0, 13) + '..' : name;
+            });
+
+        // Hover effects
+        node.on('mouseover', function(e, d) {
+            // Highlight connected links
+            link.attr('stroke', l =>
+                (l.source === d || l.target === d) ? '#58a6ff' : '#30363d'
+            ).attr('stroke-opacity', l =>
+                (l.source === d || l.target === d) ? 1 : 0.1
+            ).attr('stroke-width', l =>
+                (l.source === d || l.target === d) ? 2 : 1
+            );
+            // Dim other nodes
+            node.selectAll('circle').attr('opacity', n =>
+                n === d || links.some(l => (l.source === n && l.target === d) || (l.target === n && l.source === d)) ? 1 : 0.3
+            );
+            if (d.data.data) showD3Tooltip(e, d.data.data);
+        })
+        .on('mouseout', function() {
+            link.attr('stroke', '#30363d').attr('stroke-opacity', 0.4).attr('stroke-width', 1);
+            node.selectAll('circle').attr('opacity', 1);
+            hideD3Tooltip();
+        });
+
+        // Draw type group labels
+        const types = root.children || [];
+        svg.append('g')
+            .selectAll('text')
+            .data(types)
+            .join('text')
+            .attr('transform', d => {
+                const angle = (d.x + (d.children ? (d.children[d.children.length - 1].x - d.x) / 2 : 0)) * 180 / Math.PI - 90;
+                return `rotate(${angle}) translate(${radius + 30},0) rotate(${angle > 90 ? 180 : 0})`;
+            })
+            .attr('text-anchor', 'middle')
+            .attr('fill', '#6e7681')
+            .attr('font-size', '11px')
+            .attr('font-weight', 'bold')
+            .text(d => d.data.name);
+
+        container.appendChild(svg.node());
+    }
+
+    // Gantt chart for deployment order
+    function renderD3Gantt(container) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const margin = { top: 40, right: 40, bottom: 40, left: 120 };
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+
+        const svg = d3.create('svg')
+            .attr('viewBox', [0, 0, width, height])
+            .attr('width', '100%')
+            .attr('height', '100%');
+
+        const g = svg.append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        // Group nodes by depth (deployment layer)
+        const maxDepth = Math.max(...graphData.nodes.map(n => n.depth || 0));
+        const nodesByDepth = [];
+        for (let d = 0; d <= maxDepth; d++) {
+            nodesByDepth.push(graphData.nodes.filter(n => n.depth === d));
+        }
+
+        // Create task data with start/end times
+        // Each layer starts after previous layer completes
+        // Within a layer, tasks run in parallel
+        const unitTime = 100; // Each layer takes 100 time units
+        const tasks = [];
+        nodesByDepth.forEach((layerNodes, depth) => {
+            const startTime = depth * unitTime;
+            const endTime = startTime + unitTime;
+            layerNodes.forEach((n, idx) => {
+                tasks.push({
+                    id: n.id,
+                    types: n.types,
+                    layer: depth,
+                    start: startTime,
+                    end: endTime,
+                    yIndex: idx,
+                    layerSize: layerNodes.length,
+                    dependents: n.dependents
+                });
+            });
+        });
+
+        // Scales
+        const xScale = d3.scaleLinear()
+            .domain([0, (maxDepth + 1) * unitTime])
+            .range([0, innerWidth]);
+
+        // Calculate bar height based on available space
+        const totalTasks = tasks.length;
+        const barHeight = Math.min(25, Math.max(10, innerHeight / (totalTasks + maxDepth)));
+        const layerGap = barHeight * 0.5;
+
+        // Calculate y position for each task
+        let yOffset = 0;
+        nodesByDepth.forEach((layerNodes, depth) => {
+            layerNodes.forEach((n, idx) => {
+                const task = tasks.find(t => t.id === n.id);
+                task.y = yOffset + idx * barHeight;
+            });
+            yOffset += layerNodes.length * barHeight + layerGap;
+        });
+
+        // Draw layer separators and labels
+        yOffset = 0;
+        nodesByDepth.forEach((layerNodes, depth) => {
+            // Layer background
+            g.append('rect')
+                .attr('x', xScale(depth * unitTime))
+                .attr('y', yOffset - 2)
+                .attr('width', xScale(unitTime))
+                .attr('height', layerNodes.length * barHeight + 4)
+                .attr('fill', depth % 2 === 0 ? '#161b22' : '#1c2128')
+                .attr('opacity', 0.5);
+
+            // Layer label on x-axis
+            g.append('text')
+                .attr('x', xScale(depth * unitTime + unitTime / 2))
+                .attr('y', -15)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#8b949e')
+                .attr('font-size', '11px')
+                .text(`Layer ${depth}`);
+
+            yOffset += layerNodes.length * barHeight + layerGap;
+        });
+
+        // Draw task bars
+        const taskBars = g.selectAll('.task-bar')
+            .data(tasks)
+            .join('g')
+            .attr('class', 'task-bar');
+
+        taskBars.append('rect')
+            .attr('x', d => xScale(d.start) + 2)
+            .attr('y', d => d.y)
+            .attr('width', d => xScale(d.end - d.start) - 4)
+            .attr('height', barHeight - 2)
+            .attr('rx', 3)
+            .attr('fill', d => getD3NodeColor({ types: d.types }))
+            .attr('opacity', 0.8)
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 0.5);
+
+        // Task labels (on bars if wide enough, otherwise to the left)
+        taskBars.append('text')
+            .attr('x', d => xScale(d.start) + 6)
+            .attr('y', d => d.y + barHeight / 2)
+            .attr('dy', '0.35em')
+            .attr('fill', '#fff')
+            .attr('font-size', Math.min(10, barHeight - 4) + 'px')
+            .text(d => {
+                const maxLen = Math.floor((xScale(d.end - d.start) - 10) / 6);
+                return d.id.length > maxLen ? d.id.slice(0, maxLen - 2) + '..' : d.id;
+            });
+
+        // Hover effects
+        taskBars.on('mouseover', function(e, d) {
+            d3.select(this).select('rect').attr('opacity', 1).attr('stroke-width', 2);
+            showD3Tooltip(e, { id: d.id, types: d.types, dependents: d.dependents });
+        })
+        .on('mouseout', function() {
+            d3.select(this).select('rect').attr('opacity', 0.8).attr('stroke-width', 0.5);
+            hideD3Tooltip();
+        });
+
+        // Draw dependency arrows
+        graphData.edges.forEach(e => {
+            const sourceTask = tasks.find(t => t.id === e.source);
+            const targetTask = tasks.find(t => t.id === e.target);
+            if (sourceTask && targetTask && sourceTask.layer < targetTask.layer) {
+                const x1 = xScale(sourceTask.end) - 2;
+                const y1 = sourceTask.y + barHeight / 2;
+                const x2 = xScale(targetTask.start) + 2;
+                const y2 = targetTask.y + barHeight / 2;
+
+                g.append('path')
+                    .attr('d', `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#30363d')
+                    .attr('stroke-width', 1)
+                    .attr('opacity', 0.4);
+            }
+        });
+
+        // Timeline axis at bottom
+        const xAxis = d3.axisBottom(xScale)
+            .ticks(maxDepth + 1)
+            .tickFormat(d => `T+${d}`);
+
+        g.append('g')
+            .attr('transform', `translate(0,${yOffset + 10})`)
+            .call(xAxis)
+            .selectAll('text')
+            .attr('fill', '#8b949e');
+
+        g.selectAll('.domain, .tick line')
+            .attr('stroke', '#30363d');
+
+        container.appendChild(svg.node());
+    }
+
     // Window resize handler for D3 visualizations
     let d3ResizeTimeout;
     window.addEventListener('resize', () => {
@@ -4366,19 +5389,177 @@ ${paramLines}
     }
     document.addEventListener('DOMContentLoaded', initSearchListeners);
 
-    // Global keyboard shortcut for search
+    // Global keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        // / to open search (when not in input)
-        if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            openSearch();
-        }
-        // Escape to close modals
+        const inInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+
+        // Always handle Escape
         if (e.key === 'Escape') {
             closeSearch();
             closeAddResource();
+            const helpModal = document.getElementById('keyboard-help-modal');
+            if (helpModal) helpModal.remove();
+            if (cy) {
+                cy.nodes().unselect();
+                clearImpactHighlight();
+                document.getElementById('impact-mode').checked = false;
+            }
+            return;
+        }
+
+        // Skip other shortcuts if in input
+        if (inInput) return;
+
+        // / or Cmd+K to open search
+        if (e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) {
+            e.preventDefault();
+            openSearch();
+            return;
+        }
+
+        // ? to show keyboard help
+        if (e.key === '?') {
+            e.preventDefault();
+            showKeyboardHelp();
+            return;
+        }
+
+        // View switching: g=graph, d=d3, t=timeline, a=api, y=types, c=composition
+        const viewKeys = { g: 'graph', d: 'd3', t: 'timeline', a: 'api', y: 'types', c: 'composition' };
+        if (viewKeys[e.key]) {
+            e.preventDefault();
+            const btn = document.querySelector(`nav button[data-view="${viewKeys[e.key]}"]`);
+            if (btn) btn.click();
+            return;
+        }
+
+        // i = toggle impact mode
+        if (e.key === 'i') {
+            e.preventDefault();
+            const checkbox = document.getElementById('impact-mode');
+            checkbox.checked = !checkbox.checked;
+            checkbox.dispatchEvent(new Event('change'));
+            return;
+        }
+
+        // r = reset/fit view
+        if (e.key === 'r') {
+            e.preventDefault();
+            if (cy) cy.fit(null, 50);
+            return;
+        }
+
+        // f = focus on selected
+        if (e.key === 'f') {
+            e.preventDefault();
+            if (cy) {
+                const selected = cy.nodes(':selected');
+                if (selected.length > 0) cy.fit(selected, 100);
+            }
+            return;
+        }
+
+        // Arrow keys for node navigation
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && cy) {
+            e.preventDefault();
+            navigateNodes(e.key);
+            return;
+        }
+
+        // 1-5 for D3 sub-views when on D3 tab
+        if (['1','2','3','4','5'].includes(e.key) && document.getElementById('view-d3').classList.contains('active')) {
+            e.preventDefault();
+            const tabs = document.querySelectorAll('.d3-tab');
+            const idx = parseInt(e.key) - 1;
+            if (tabs[idx]) tabs[idx].click();
+            return;
         }
     });
+
+    // Navigate between nodes using arrow keys
+    function navigateNodes(key) {
+        if (!cy || !graphData) return;
+        const selected = cy.nodes(':selected').first();
+        if (!selected.length) {
+            const root = graphData.roots?.[0] || graphData.nodes[0]?.id;
+            if (root) cy.getElementById(root).select();
+            return;
+        }
+
+        const current = selected.id();
+        let next = null;
+        if (key === 'ArrowRight' || key === 'ArrowDown') {
+            const children = graphData.edges.filter(e => e.target === current).map(e => e.source);
+            if (children.length > 0) next = children[0];
+        } else if (key === 'ArrowLeft' || key === 'ArrowUp') {
+            const parents = graphData.edges.filter(e => e.source === current).map(e => e.target);
+            if (parents.length > 0) next = parents[0];
+        }
+
+        if (next) {
+            cy.nodes().unselect();
+            const nextNode = cy.getElementById(next);
+            nextNode.select();
+            cy.animate({ center: { eles: nextNode }, duration: 200 });
+            if (document.getElementById('impact-mode').checked) {
+                showImpact(next);
+            }
+        }
+    }
+
+    // Show keyboard shortcuts help
+    function showKeyboardHelp() {
+        if (document.getElementById('keyboard-help-modal')) return;
+
+        const shortcuts = [
+            ['/', 'Search'],
+            ['Esc', 'Clear selection / Close'],
+            ['g', 'Graph view'],
+            ['d', 'D3 view'],
+            ['t', 'Timeline view'],
+            ['a', 'API/Patterns view'],
+            ['i', 'Toggle impact mode'],
+            ['r', 'Reset/fit view'],
+            ['f', 'Focus on selected'],
+            ['Arrows', 'Navigate nodes'],
+            ['1-5', 'D3 sub-views']
+        ];
+
+        const modal = document.createElement('div');
+        modal.id = 'keyboard-help-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;';
+
+        const content = document.createElement('div');
+        content.style.cssText = 'background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.5rem;max-width:500px;color:#c9d1d9;';
+
+        const title = document.createElement('h3');
+        title.style.cssText = 'margin:0 0 1rem;color:#58a6ff;';
+        title.textContent = 'Keyboard Shortcuts';
+        content.appendChild(title);
+
+        const grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:0.5rem 1rem;font-size:0.9rem;';
+
+        shortcuts.forEach(([key, desc]) => {
+            const kbd = document.createElement('kbd');
+            kbd.style.cssText = 'background:#21262d;padding:0.2rem 0.5rem;border-radius:4px;font-family:monospace;';
+            kbd.textContent = key;
+            grid.appendChild(kbd);
+            const span = document.createElement('span');
+            span.textContent = desc;
+            grid.appendChild(span);
+        });
+        content.appendChild(grid);
+
+        const hint = document.createElement('p');
+        hint.style.cssText = 'margin:1rem 0 0;color:#8b949e;font-size:0.85rem;';
+        hint.textContent = 'Press any key to close';
+        content.appendChild(hint);
+
+        modal.appendChild(content);
+        modal.onclick = () => modal.remove();
+        document.body.appendChild(modal);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LAYOUT SELECTOR
@@ -4433,6 +5614,129 @@ ${paramLines}
 
         const layout = cy.layout(layouts[layoutName] || layouts.breadthfirst);
         layout.run();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FILTER NODES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function initFilterPanel() {
+        if (!graphData) return;
+
+        // Populate type dropdown
+        const typeSelect = document.getElementById('filter-type');
+        if (typeSelect) {
+            typeSelect.textContent = '';
+            const allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All types';
+            typeSelect.appendChild(allOption);
+
+            const types = new Set();
+            graphData.nodes.forEach(n => normalizeTypes(n.types).forEach(t => types.add(t)));
+            [...types].sort().forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+        }
+
+        // Add event listeners
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                applyPresetFilter(btn.dataset.filter);
+            });
+        });
+
+        const filterType = document.getElementById('filter-type');
+        const filterDepthMin = document.getElementById('filter-depth-min');
+        const filterDepthMax = document.getElementById('filter-depth-max');
+        const filterMinDeps = document.getElementById('filter-min-deps');
+
+        [filterType, filterDepthMin, filterDepthMax, filterMinDeps].forEach(el => {
+            if (el) el.addEventListener('change', applyCustomFilter);
+            if (el) el.addEventListener('input', applyCustomFilter);
+        });
+    }
+
+    function applyPresetFilter(preset) {
+        if (!cy || !graphData) return;
+
+        // Clear custom filters
+        document.getElementById('filter-type').value = '';
+        document.getElementById('filter-depth-min').value = '';
+        document.getElementById('filter-depth-max').value = '';
+        document.getElementById('filter-min-deps').value = '';
+
+        cy.nodes().removeClass('filtered-out');
+
+        if (preset === 'all') return;
+
+        const maxDeps = Math.max(...graphData.nodes.map(n => n.dependents || 0));
+        const criticalThreshold = maxDeps * 0.5;
+
+        cy.nodes().forEach(node => {
+            const data = node.data();
+            let hide = false;
+
+            if (preset === 'roots') {
+                hide = (data.depth || 0) !== 0;
+            } else if (preset === 'leaves') {
+                hide = (data.dependents || 0) !== 0;
+            } else if (preset === 'critical') {
+                hide = (data.dependents || 0) < criticalThreshold;
+            }
+
+            if (hide) node.addClass('filtered-out');
+        });
+    }
+
+    function applyCustomFilter() {
+        if (!cy || !graphData) return;
+
+        // Deactivate preset buttons
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+
+        const type = document.getElementById('filter-type').value;
+        const depthMin = document.getElementById('filter-depth-min').value;
+        const depthMax = document.getElementById('filter-depth-max').value;
+        const minDeps = document.getElementById('filter-min-deps').value;
+
+        // If all empty, show all
+        if (!type && !depthMin && !depthMax && !minDeps) {
+            document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+            cy.nodes().removeClass('filtered-out');
+            return;
+        }
+
+        cy.nodes().forEach(node => {
+            const data = node.data();
+            let hide = false;
+
+            if (type && !normalizeTypes(data.types).includes(type)) hide = true;
+            if (depthMin && (data.depth || 0) < parseInt(depthMin)) hide = true;
+            if (depthMax && (data.depth || 0) > parseInt(depthMax)) hide = true;
+            if (minDeps && (data.dependents || 0) < parseInt(minDeps)) hide = true;
+
+            if (hide) {
+                node.addClass('filtered-out');
+            } else {
+                node.removeClass('filtered-out');
+            }
+        });
+    }
+
+    function clearFilters() {
+        document.getElementById('filter-type').value = '';
+        document.getElementById('filter-depth-min').value = '';
+        document.getElementById('filter-depth-max').value = '';
+        document.getElementById('filter-min-deps').value = '';
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+        if (cy) cy.nodes().removeClass('filtered-out');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -5406,9 +6710,261 @@ ${paramLines}
         return date.toLocaleDateString();
     }
 
+    // Git history functions
+    function toggleGitLogInput() {
+        const section = document.getElementById('git-log-input-section');
+        const btn = document.getElementById('history-load-btn');
+        const isHidden = section.style.display === 'none';
+        section.style.display = isHidden ? 'block' : 'none';
+        btn.textContent = isHidden ? 'Hide Input' : 'Load Git History';
+    }
+
+    function parseGitLog() {
+        const input = document.getElementById('git-log-input').value.trim();
+        if (!input) return;
+
+        const lines = input.split('\n').filter(l => l.trim());
+        const commits = lines.map((line, idx) => {
+            // Parse formats like: "a1b2c3d feat: add nginx" or "a1b2c3d (origin/main) message"
+            const match = line.match(/^([a-f0-9]+)\s+(?:\([^)]+\)\s+)?(.*)$/i);
+            if (match) {
+                const [, hash, message] = match;
+                // Infer change type from conventional commit prefix
+                let changeType = 'change';
+                if (/^feat[:\(]|add|new/.test(message.toLowerCase())) changeType = 'added';
+                else if (/^fix[:\(]|bug|patch/.test(message.toLowerCase())) changeType = 'modified';
+                else if (/^refactor|rename|move/.test(message.toLowerCase())) changeType = 'modified';
+                else if (/^remove|delete|drop/.test(message.toLowerCase())) changeType = 'removed';
+
+                // Create a synthetic timestamp (spread over last 30 days)
+                const daysAgo = Math.floor((idx / lines.length) * 30);
+                const timestamp = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+
+                return {
+                    commit: hash.slice(0, 7),
+                    message: message,
+                    author: 'git',
+                    timestamp: timestamp.toISOString(),
+                    changes: [{
+                        type: changeType,
+                        resource: extractResourceFromMessage(message)
+                    }]
+                };
+            }
+            return null;
+        }).filter(c => c);
+
+        if (commits.length === 0) {
+            alert('Could not parse git log. Expected format: "hash message"');
+            return;
+        }
+
+        // Store in graphData and update view
+        graphData.history = commits;
+        populateHistoryView();
+        renderHistoryChart(commits);
+        document.getElementById('git-log-input-section').style.display = 'none';
+        document.getElementById('history-load-btn').textContent = 'Load Git History';
+    }
+
+    function extractResourceFromMessage(message) {
+        // Try to extract resource name from commit message
+        const patterns = [
+            /add (\w[\w-]+)/i,
+            /update (\w[\w-]+)/i,
+            /fix (\w[\w-]+)/i,
+            /remove (\w[\w-]+)/i,
+            /(\w[\w-]+) resource/i,
+            /(\w[\w-]+) container/i,
+            /(\w[\w-]+) vm/i,
+            /(\w[\w-]+) service/i
+        ];
+        for (const pattern of patterns) {
+            const match = message.match(pattern);
+            if (match && match[1].length > 2) return match[1];
+        }
+        return message.split(/[\s:,]+/)[0] || 'resource';
+    }
+
+    function loadSampleHistory() {
+        const sample = `a1b2c3d feat: add nginx reverse proxy
+e4f5g6h feat: add redis cache cluster
+i7j8k9l fix: update dns-primary TTL
+m0n1o2p refactor: split auth into auth-primary and auth-backup
+q3r4s5t feat: add monitoring stack
+u6v7w8x fix: correct postgres replica dependency
+y9z0a1b chore: update container images
+c2d3e4f feat: add grafana dashboards
+g5h6i7j remove: deprecated legacy-api
+k8l9m0n fix: network segmentation for db tier`;
+        document.getElementById('git-log-input').value = sample;
+    }
+
+    function renderHistoryChart(commits) {
+        const chart = document.getElementById('history-chart');
+        const evolution = document.getElementById('history-evolution');
+
+        if (!commits || commits.length < 2) {
+            evolution.style.display = 'none';
+            return;
+        }
+
+        evolution.style.display = 'block';
+
+        // Group commits by day
+        const byDay = {};
+        commits.forEach(c => {
+            const day = new Date(c.timestamp).toDateString();
+            byDay[day] = (byDay[day] || 0) + 1;
+        });
+
+        const days = Object.keys(byDay).sort((a, b) => new Date(a) - new Date(b));
+        const maxCount = Math.max(...Object.values(byDay));
+
+        // Build chart bars
+        chart.innerHTML = '';
+        days.forEach(day => {
+            const count = byDay[day];
+            const height = Math.max(10, (count / maxCount) * 60);
+            const bar = document.createElement('div');
+            bar.style.cssText = `width: ${Math.max(8, 100 / days.length - 2)}%; height: ${height}px; background: #238636; border-radius: 2px; cursor: pointer;`;
+            bar.title = `${day}: ${count} commit${count > 1 ? 's' : ''}`;
+            bar.onclick = () => highlightCommitsOnDay(day);
+            chart.appendChild(bar);
+        });
+
+        // Update date range labels
+        document.getElementById('history-chart-start').textContent = new Date(days[0]).toLocaleDateString();
+        document.getElementById('history-chart-end').textContent = new Date(days[days.length - 1]).toLocaleDateString();
+
+        // Update contributors count
+        const authors = new Set(commits.map(c => c.author));
+        document.getElementById('history-contributors').textContent = authors.size;
+    }
+
+    function highlightCommitsOnDay(day) {
+        const list = document.getElementById('history-list');
+        const commits = list.querySelectorAll('.history-commit');
+        commits.forEach(el => {
+            const time = el.querySelector('.history-commit-time');
+            if (time && time.textContent.includes(new Date(day).toLocaleDateString())) {
+                el.style.background = '#1c2128';
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => { el.style.background = ''; }, 2000);
+            }
+        });
+    }
+
+    // Drag and drop handlers for import
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add('dragover');
+    }
+
+    function handleDragLeave(e) {
+        e.currentTarget.classList.remove('dragover');
+    }
+
+    function handleTerraformDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) importTerraformState(file);
+    }
+
+    function handlePulumiDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) importPulumiStack(file);
+    }
+
+    // Click handlers for dropzones
+    document.addEventListener('DOMContentLoaded', () => {
+        const tfDropzone = document.getElementById('terraform-dropzone');
+        const puDropzone = document.getElementById('pulumi-dropzone');
+
+        if (tfDropzone) {
+            tfDropzone.addEventListener('click', () => {
+                document.getElementById('terraform-file-input').click();
+            });
+        }
+        if (puDropzone) {
+            puDropzone.addEventListener('click', () => {
+                document.getElementById('pulumi-file-input').click();
+            });
+        }
+    });
+
+    function showImportStatus(message, type) {
+        const el = document.getElementById('import-status');
+        el.textContent = message;
+        el.style.display = 'block';
+        el.style.color = type === 'error' ? '#f85149' : type === 'success' ? '#3fb950' : '#8b949e';
+        if (type === 'success') {
+            setTimeout(() => { el.style.display = 'none'; }, 3000);
+        }
+    }
+
+    // Load graph data from URL
+    async function loadFromUrl() {
+        const input = document.getElementById('url-import-input');
+        const url = input.value.trim();
+        if (!url) return;
+
+        // Basic URL validation
+        try {
+            new URL(url);
+        } catch {
+            showImportStatus('Invalid URL format', 'error');
+            return;
+        }
+
+        showImportStatus('Fetching from URL...', 'info');
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const data = await response.json(); // JSON parse only - no code execution
+
+            // Validate structure
+            if (!validateGraphData(data)) {
+                throw new Error('Invalid graph data structure - must have nodes array');
+            }
+
+            // If it looks like raw CUE export, convert it
+            if (data.resources && !data.nodes) {
+                const resources = Object.entries(data.resources).map(([id, r]) => ({
+                    id,
+                    ...r,
+                    types: r['@type'] ? (Array.isArray(r['@type']) ? r['@type'] : Object.keys(r['@type'])) : []
+                }));
+                const converted = convertToQuicueFormat(resources);
+                graphData = converted;
+            } else {
+                graphData = data;
+            }
+
+            reinitGraph();
+            showImportStatus(`Loaded ${graphData.nodes.length} nodes from URL`, 'success');
+
+            // Update URL with source param for sharing
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('source', url);
+            window.history.replaceState({}, '', newUrl);
+
+        } catch (e) {
+            console.error('URL load error:', e);
+            showImportStatus(`Error: ${e.message}`, 'error');
+        }
+    }
+
     // Import Terraform state file
     async function importTerraformState(file) {
         if (!file) return;
+        showImportStatus('Parsing Terraform state...', 'info');
+        const dropzone = document.getElementById('terraform-dropzone');
 
         try {
             const text = await file.text();
@@ -5467,10 +7023,14 @@ ${paramLines}
             graphData = converted;
             reinitGraph();
 
-            alert(`Imported ${resources.length} resources from Terraform state`);
+            dropzone.classList.add('success');
+            setTimeout(() => dropzone.classList.remove('success'), 2000);
+            showImportStatus(`Imported ${resources.length} resources from Terraform`, 'success');
         } catch (e) {
             console.error('Terraform import error:', e);
-            alert('Error parsing Terraform state: ' + e.message);
+            dropzone.classList.add('error');
+            setTimeout(() => dropzone.classList.remove('error'), 2000);
+            showImportStatus('Error: ' + e.message, 'error');
         }
     }
 
@@ -5504,6 +7064,8 @@ ${paramLines}
     // Import Pulumi stack
     async function importPulumiStack(file) {
         if (!file) return;
+        showImportStatus('Parsing Pulumi stack...', 'info');
+        const dropzone = document.getElementById('pulumi-dropzone');
 
         try {
             const text = await file.text();
@@ -5511,8 +7073,9 @@ ${paramLines}
 
             // Handle YAML or JSON
             if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
-                // Simple YAML parsing for basic cases
-                alert('YAML import requires js-yaml library. Please export your Pulumi stack as JSON using: pulumi stack export > stack.json');
+                dropzone.classList.add('error');
+                setTimeout(() => dropzone.classList.remove('error'), 2000);
+                showImportStatus('YAML not supported. Use: pulumi stack export > stack.json', 'error');
                 return;
             } else {
                 stack = JSON.parse(text);
@@ -5543,10 +7106,14 @@ ${paramLines}
             graphData = converted;
             reinitGraph();
 
-            alert(`Imported ${resources.length} resources from Pulumi stack`);
+            dropzone.classList.add('success');
+            setTimeout(() => dropzone.classList.remove('success'), 2000);
+            showImportStatus(`Imported ${resources.length} resources from Pulumi`, 'success');
         } catch (e) {
             console.error('Pulumi import error:', e);
-            alert('Error parsing Pulumi stack: ' + e.message);
+            dropzone.classList.add('error');
+            setTimeout(() => dropzone.classList.remove('error'), 2000);
+            showImportStatus('Error: ' + e.message, 'error');
         }
     }
 
@@ -5569,6 +7136,133 @@ ${paramLines}
         };
 
         return typeMap[resourceType] || { [resourceType]: true, [provider]: true };
+    }
+
+    // Proxmox Import Modal functions
+    function showProxmoxImportModal() {
+        document.getElementById('proxmox-import-modal').style.display = 'flex';
+        document.getElementById('proxmox-import-status').style.display = 'none';
+    }
+
+    function hideProxmoxImportModal() {
+        document.getElementById('proxmox-import-modal').style.display = 'none';
+        document.getElementById('proxmox-url').value = '';
+        document.getElementById('proxmox-token-id').value = '';
+        document.getElementById('proxmox-token-secret').value = '';
+    }
+
+    async function importFromProxmox() {
+        const url = document.getElementById('proxmox-url').value.trim();
+        const tokenId = document.getElementById('proxmox-token-id').value.trim();
+        const tokenSecret = document.getElementById('proxmox-token-secret').value.trim();
+        const statusEl = document.getElementById('proxmox-import-status');
+
+        if (!url || !tokenId || !tokenSecret) {
+            statusEl.textContent = 'Please fill in all fields';
+            statusEl.style.color = '#f85149';
+            statusEl.style.display = 'block';
+            return;
+        }
+
+        statusEl.textContent = 'Connecting to Proxmox API...';
+        statusEl.style.color = '#8b949e';
+        statusEl.style.display = 'block';
+
+        try {
+            const baseUrl = url.replace(/\/$/, '');
+            const headers = {
+                'Authorization': `PVEAPIToken=${tokenId}=${tokenSecret}`
+            };
+
+            // Fetch nodes
+            statusEl.textContent = 'Fetching cluster nodes...';
+            const nodesResp = await fetch(`${baseUrl}/api2/json/nodes`, { headers });
+            if (!nodesResp.ok) throw new Error(`Nodes request failed: ${nodesResp.status}`);
+            const nodesData = await nodesResp.json();
+
+            const resources = [];
+            const clusterNodes = nodesData.data || [];
+
+            // Add cluster nodes as resources
+            clusterNodes.forEach(node => {
+                resources.push({
+                    id: node.node,
+                    types: { ProxmoxNode: true, Hypervisor: true },
+                    proxmox: {
+                        type: 'node',
+                        status: node.status,
+                        cpu: node.cpu,
+                        mem: node.mem,
+                        maxmem: node.maxmem
+                    },
+                    depends_on: []
+                });
+            });
+
+            // Fetch containers and VMs for each node
+            for (const node of clusterNodes) {
+                statusEl.textContent = `Fetching guests from ${node.node}...`;
+
+                // LXC Containers
+                try {
+                    const lxcResp = await fetch(`${baseUrl}/api2/json/nodes/${node.node}/lxc`, { headers });
+                    if (lxcResp.ok) {
+                        const lxcData = await lxcResp.json();
+                        (lxcData.data || []).forEach(ct => {
+                            resources.push({
+                                id: ct.name || `ct-${ct.vmid}`,
+                                types: { LXCContainer: true, Container: true },
+                                proxmox: {
+                                    type: 'lxc',
+                                    vmid: ct.vmid,
+                                    status: ct.status,
+                                    node: node.node,
+                                    cpus: ct.cpus,
+                                    memory: ct.maxmem
+                                },
+                                depends_on: [node.node]
+                            });
+                        });
+                    }
+                } catch (e) { /* Node might not have LXC support */ }
+
+                // QEMU VMs
+                try {
+                    const vmResp = await fetch(`${baseUrl}/api2/json/nodes/${node.node}/qemu`, { headers });
+                    if (vmResp.ok) {
+                        const vmData = await vmResp.json();
+                        (vmData.data || []).forEach(vm => {
+                            resources.push({
+                                id: vm.name || `vm-${vm.vmid}`,
+                                types: { VirtualMachine: true, VM: true, QEMU: true },
+                                proxmox: {
+                                    type: 'qemu',
+                                    vmid: vm.vmid,
+                                    status: vm.status,
+                                    node: node.node,
+                                    cpus: vm.cpus,
+                                    memory: vm.maxmem
+                                },
+                                depends_on: [node.node]
+                            });
+                        });
+                    }
+                } catch (e) { /* Continue on error */ }
+            }
+
+            // Convert to quicue format
+            const converted = convertToQuicueFormat(resources);
+            graphData = converted;
+            reinitGraph();
+
+            hideProxmoxImportModal();
+            alert(`Imported ${resources.length} resources from Proxmox (${clusterNodes.length} nodes)`);
+
+        } catch (e) {
+            console.error('Proxmox import error:', e);
+            statusEl.textContent = `Error: ${e.message}. Check CORS settings or use a CORS proxy.`;
+            statusEl.style.color = '#f85149';
+        }
     }
 
     // Convert imported resources to quicue format with computed fields
@@ -5670,6 +7364,7 @@ ${paramLines}
     window.init = init;
     window.showImpact = showImpact;
     window.clearImpactHighlight = clearImpactHighlight;
+    window.clearFilters = clearFilters;
     window.getCy = () => cy;
     </script>
 
