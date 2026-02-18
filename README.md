@@ -17,8 +17,8 @@ Both share one IRI space. A SPARQL query can join what infrastructure *is* with 
 | Domain | Project | Scale |
 |--------|---------|-------|
 | IT infrastructure | grdn, apercue | 50 nodes, 29 providers |
-| Construction PM | [CMHC Retrofit](https://cmhc-retrofit.quicue.ca/) | 18 nodes / 27 edges |
-| Energy efficiency | Greener Homes | 17 nodes / 25 edges |
+| Construction PM | [CMHC NHCF Deep Retrofit](https://cmhc-retrofit.quicue.ca/) | 18 nodes / 27 edges |
+| Energy efficiency | [Greener Homes](https://cmhc-retrofit.quicue.ca/#greener-homes) | 17 nodes / 25 edges |
 | Real estate | maison-613 | 7 workflow graphs |
 
 ### Links
