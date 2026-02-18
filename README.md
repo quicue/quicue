@@ -10,7 +10,7 @@ Used across IT infrastructure, construction project management, energy efficienc
 
 **[quicue-kg](https://github.com/quicue/quicue-kg)** — the knowledge layer. Architectural decisions, patterns, insights. Exports to PROV-O, DCAT, SKOS, N-Triples, Turtle, Prolog, Datalog.
 
-Both share one IRI space. A SPARQL query can join what infrastructure *is* with *why* it exists.
+Both share one IRI space. Inside the CUE closed world, comprehensions precompute every query at eval time — no SPARQL needed. The W3C exports exist for when the data leaves CUE and joins external systems.
 
 ### Where it's used
 
