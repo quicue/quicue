@@ -8,7 +8,7 @@ Used across IT infrastructure, construction project management, energy efficienc
 
 ### Try it
 
-**[imp.quicue.ca](https://imp.quicue.ca/)** — operator dashboard. D3 dependency graph, execution planner, resource browser, Hydra explorer. 30 resources, 654 resolved commands, all from one CUE evaluation.
+**[demo.quicue.ca](https://demo.quicue.ca/)** — operator dashboard. D3 dependency graph, execution planner, resource browser, Hydra explorer. 30 resources, 654 resolved commands, all from one CUE evaluation.
 
 **[api.quicue.ca/docs](https://api.quicue.ca/docs)** — Swagger UI. Browse 654 endpoints across 29 providers. POST any action to see the resolved command (mock mode — nothing executes).
 
@@ -26,7 +26,7 @@ Both share one IRI space. CUE comprehensions precompute every query at eval time
 
 | Domain | Project | Scale |
 |--------|---------|-------|
-| IT infrastructure | [live demo](https://imp.quicue.ca/) / [API](https://api.quicue.ca/docs) | 30 resources, 29 providers, 654 commands |
+| IT infrastructure | [live demo](https://demo.quicue.ca/) / [API](https://api.quicue.ca/docs) | 30 resources, 29 providers, 654 commands |
 | Construction PM | [CMHC NHCF Deep Retrofit](https://cmhc-retrofit.quicue.ca/) | 18 nodes / 27 edges |
 | Energy efficiency | [Greener Homes](https://cmhc-retrofit.quicue.ca/#greener-homes) | 17 nodes / 25 edges |
 | Real estate | maison-613 | 7 workflow graphs |
@@ -35,7 +35,7 @@ Both share one IRI space. CUE comprehensions precompute every query at eval time
 
 | | |
 |---|---|
-| **imp.quicue.ca** | [Operator dashboard](https://imp.quicue.ca/) — graph, planner, browser, Hydra explorer |
+| **demo.quicue.ca** | [Operator dashboard](https://demo.quicue.ca/) — graph, planner, browser, Hydra explorer |
 | **api.quicue.ca** | [Swagger docs](https://api.quicue.ca/docs) &#124; [Hydra JSON-LD](https://api.quicue.ca/api/v1/hydra) &#124; [Graph JSON-LD](https://api.quicue.ca/api/v1/graph.jsonld) |
 | **docs.quicue.ca** | [Patterns documentation](https://docs.quicue.ca) |
 | **kg.quicue.ca** | [Knowledge graph docs](https://kg.quicue.ca) &#124; [W3C spec](https://kg.quicue.ca/spec/) |
