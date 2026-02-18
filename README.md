@@ -2,15 +2,15 @@
 
 CUE framework for modeling any domain where things depend on other things.
 
-You declare resources with a type (`@type`) and dependencies (`depends_on`). The framework computes everything else: deployment order, impact analysis, blast radius, rollback plans, and W3C linked data exports. No runtime, no database — all at `cue vet` time.
+You declare resources with a type (`@type`) and dependencies (`depends_on`). The framework computes everything else — deployment plans, impact analysis, blast radius, rollback sequences, JSON-LD graphs, SHACL shapes, DCAT catalogs, N-Triples, PROV-O audit trails — all as deterministic projections of one validated source of truth. No runtime, no database, no external serializer. Everything is `cue export`.
 
 Used across IT infrastructure, construction project management, energy efficiency, and real estate operations — same pattern library, different domains.
 
-**[quicue.ca](https://github.com/quicue/quicue.ca)** — the framework. 29 provider templates, 18 graph patterns, 12+ export formats.
+**[quicue.ca](https://github.com/quicue/quicue.ca)** — the framework. 29 provider templates, 18 graph patterns, 19 W3C projection files.
 
-**[quicue-kg](https://github.com/quicue/quicue-kg)** — the knowledge layer. Architectural decisions, patterns, insights. Exports to PROV-O, DCAT, SKOS, N-Triples, Turtle, Prolog, Datalog.
+**[quicue-kg](https://github.com/quicue/quicue-kg)** — the knowledge layer. Architectural decisions, patterns, insights. Projects to PROV-O, DCAT, SKOS, Web Annotation, N-Triples, Turtle, Prolog, Datalog.
 
-Both share one IRI space. Inside the CUE closed world, comprehensions precompute every query at eval time — no SPARQL needed. The W3C exports exist for when the data leaves CUE and joins external systems.
+Both share one IRI space. CUE comprehensions precompute every query at eval time — SPARQL is only needed once the data leaves the CUE closed world and joins external systems.
 
 ### Where it's used
 
