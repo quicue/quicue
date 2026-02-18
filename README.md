@@ -1,14 +1,16 @@
 # quicue
 
-Typed dependency graphs in CUE — model any domain as resources with `@type` and `depends_on`.
+CUE framework for modeling any domain where things depend on other things.
 
-Two modules, one IRI space:
+You declare resources with a type (`@type`) and dependencies (`depends_on`). The framework computes everything else: deployment order, impact analysis, blast radius, rollback plans, and W3C linked data exports. No runtime, no database — all at `cue vet` time.
 
-**[quicue.ca](https://github.com/quicue/quicue.ca)** models what exists — resources, dependencies, actions, deployment plans. 29 provider templates, graph analysis, blast radius, health propagation. Everything validates at `cue vet` time.
+Used across IT infrastructure, construction project management, energy efficiency, and real estate operations — same pattern library, different domains.
 
-**[quicue-kg](https://github.com/quicue/quicue-kg)** captures why — architectural decisions, patterns, insights, rejected approaches. Exports to 8 linked data formats: PROV-O, DCAT, Web Annotation, SKOS, N-Triples, Turtle, Prolog, Datalog.
+**[quicue.ca](https://github.com/quicue/quicue.ca)** — the framework. 29 provider templates, 18 graph patterns, 12+ export formats.
 
-Both export to W3C standard vocabularies. A SPARQL query can join infrastructure state with the decisions that shaped it.
+**[quicue-kg](https://github.com/quicue/quicue-kg)** — the knowledge layer. Architectural decisions, patterns, insights. Exports to PROV-O, DCAT, SKOS, N-Triples, Turtle, Prolog, Datalog.
+
+Both share one IRI space. A SPARQL query can join what infrastructure *is* with *why* it exists.
 
 ### Where it's used
 
@@ -18,8 +20,6 @@ Both export to W3C standard vocabularies. A SPARQL query can join infrastructure
 | Construction PM | [CMHC Retrofit](https://cmhc-retrofit.quicue.ca/) | 18 nodes / 27 edges |
 | Energy efficiency | Greener Homes | 17 nodes / 25 edges |
 | Real estate | maison-613 | 7 workflow graphs |
-
-Same vocabulary, same patterns, different domains.
 
 ### Links
 
